@@ -6,7 +6,14 @@ import { IoSearchOutline, IoSettingsOutline, IoSendSharp, IoAttachOutline, IoChe
 import { BsChatLeft, BsInfoCircle } from 'react-icons/bs';
 import { FiUser } from 'react-icons/fi';
 
-const socket = io('http://localhost:5000');
+const apiBase = process.env.REACT_APP_API_BASE || 'https://convodb1.onrender.com/api';
+const backendUrl = process.env.REACT_APP_BACKEND_URL || 'https://convodb1.onrender.com';
+
+// Socket.IO connection
+const socket = io(backendUrl, {
+  withCredentials: true,
+  transports: ['websocket', 'polling'],
+});
 
 // Debounce utility
 const debounce = (func, delay) => {
@@ -50,7 +57,7 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
             >
               {userDPs[user] ? (
                 <img
-                  src={`http://localhost:5000${userDPs[user]}`}
+                  src={userDPs[user]} // Full S3 URL
                   alt={user}
                   className="user-avatar"
                   onClick={(e) => {
@@ -96,7 +103,7 @@ const ChatHeader = ({ recipient, username, profilePic, userDPs, setIsSettingsOpe
           <>
             {userDPs[recipient] ? (
               <img
-                src={`http://localhost:5000${userDPs[recipient]}`}
+                src={userDPs[recipient]} // Full S3 URL
                 alt={recipient}
                 className="profile-pic"
               />
@@ -126,7 +133,7 @@ const UserProfile = ({ username, profilePic, setView }) => {
       <IoChevronBack className="close-button" onClick={() => setView('chat')} />
       <div className="profile-info">
         <img
-          src={profilePic ? `http://localhost:5000${profilePic}` : `https://via.placeholder.com/120?text=${username.charAt(0)}`}
+          src={profilePic || `https://via.placeholder.com/120?text=${username.charAt(0)}`}
           alt={username}
           className="profile-pic-large"
         />
@@ -164,7 +171,7 @@ const ProfilePicModal = ({ profilePic, username, onClose }) => {
       <div className="modal-content">
         <button className="modal-close" onClick={onClose}>×</button>
         <img
-          src={profilePic ? `http://localhost:5000${profilePic}` : `https://via.placeholder.com/300?text=${username.charAt(0)}`}
+          src={profilePic || `https://via.placeholder.com/300?text=${username.charAt(0)}`}
           alt={username}
           className="modal-profile-pic"
         />
@@ -183,7 +190,7 @@ const SettingsSidebar = ({ isSettingsOpen, setIsSettingsOpen, username, profileP
       </div>
       <div className="profile-section">
         <img
-          src={profilePic ? `http://localhost:5000${profilePic}` : `https://via.placeholder.com/120?text=${username.charAt(0)}`}
+          src={profilePic || `https://via.placeholder.com/120?text=${username.charAt(0)}`}
           alt={username}
           className="profile-pic-large"
         />
@@ -342,7 +349,7 @@ function App() {
   const fetchUnreadMessages = useCallback(async () => {
     if (username) {
       try {
-        const response = await axios.get(`http://localhost:5000/api/messages/unread/${username}`);
+        const response = await axios.get(`${apiBase}/messages/unread/${username}`, { withCredentials: true });
         setUnreadMessages(response.data);
       } catch (error) {
         console.error('Failed to fetch unread messages:', error);
@@ -353,8 +360,9 @@ function App() {
   // Fetch users
   const fetchUsers = useCallback(async (query = '') => {
     try {
-      const response = await axios.get('http://localhost:5000/api/users/search', {
+      const response = await axios.get(`${apiBase}/users/search`, {
         params: { query, currentUser: username },
+        withCredentials: true,
       });
       let uniqueUsers = [];
       if (response.data && Array.isArray(response.data)) {
@@ -368,7 +376,7 @@ function App() {
       setUsers(uniqueUsers);
       const dpPromises = uniqueUsers.map((user) =>
         axios
-          .get(`http://localhost:5000/api/user/profile-pic/${user}`)
+          .get(`${apiBase}/user/profile-pic/${user}`, { withCredentials: true })
           .then((res) => ({ user, pic: res.data.profilePic }))
           .catch(() => ({ user, pic: null }))
       );
@@ -397,7 +405,7 @@ function App() {
       fetchUsers();
       fetchUnreadMessages();
       axios
-        .get(`http://localhost:5000/api/user/profile-pic/${storedUsername}`)
+        .get(`${apiBase}/user/profile-pic/${storedUsername}`, { withCredentials: true })
         .then((response) => setProfilePic(response.data.profilePic))
         .catch((err) => console.error('Failed to fetch profile pic:', err));
       setView('chat');
@@ -415,7 +423,7 @@ function App() {
       fetchUsers();
       fetchUnreadMessages();
       axios
-        .get(`http://localhost:5000/api/user/profile-pic/${decodeURIComponent(usernameParam)}`)
+        .get(`${apiBase}/user/profile-pic/${decodeURIComponent(usernameParam)}`, { withCredentials: true })
         .then((response) => setProfilePic(response.data.profilePic))
         .catch((err) => console.error('Failed to fetch profile pic:', err));
       setView('chat');
@@ -432,7 +440,7 @@ function App() {
               ...prev,
               [msg.username]: 0,
             }));
-            axios.post(`http://localhost:5000/api/messages/mark-read/${username}/${msg.username}`);
+            axios.post(`${apiBase}/messages/mark-read/${username}/${msg.username}`, {}, { withCredentials: true });
           } else {
             setUnreadMessages((prev) => ({
               ...prev,
@@ -482,7 +490,7 @@ function App() {
   const loadChatHistory = async (currentUser, selectedRecipient) => {
     if (selectedRecipient) {
       try {
-        const response = await axios.get(`http://localhost:5000/api/messages/${currentUser}/${selectedRecipient}`);
+        const response = await axios.get(`${apiBase}/messages/${currentUser}/${selectedRecipient}`, { withCredentials: true });
         setMessages(
           response.data.map((msg) => ({
             messageId: msg.messageId,
@@ -498,7 +506,7 @@ function App() {
           [selectedRecipient]: 0,
         }));
         setContactedUsernames((prev) => prev.includes(selectedRecipient) ? prev : [...prev, selectedRecipient]);
-        await axios.post(`http://localhost:5000/api/messages/mark-read/${currentUser}/${selectedRecipient}`);
+        await axios.post(`${apiBase}/messages/mark-read/${currentUser}/${selectedRecipient}`, {}, { withCredentials: true });
       } catch (error) {
         console.error('Failed to fetch chat history:', error);
         setMessages([]);
@@ -510,7 +518,7 @@ function App() {
 
   // Google login
   const handleGoogleLogin = () => {
-    window.location.href = 'http://localhost:5000/auth/google';
+    window.location.href = `${backendUrl}/auth/google`;
   };
 
   // Register user
@@ -529,7 +537,7 @@ function App() {
       return;
     }
     try {
-      await axios.post('http://localhost:5000/api/auth/register', { email, username, password });
+      await axios.post(`${apiBase}/auth/register`, { email, username, password }, { withCredentials: true });
       setView('login');
       setError('');
     } catch (error) {
@@ -541,7 +549,7 @@ function App() {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post('http://localhost:5000/api/auth/login', { email, password });
+      const response = await axios.post(`${apiBase}/auth/login`, { email, password }, { withCredentials: true });
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('username', response.data.username);
       setIsAuthenticated(true);
@@ -587,8 +595,9 @@ function App() {
       formData.append('timestamp', new Date().toISOString());
 
       try {
-        const response = await axios.post('http://localhost:5000/api/messages/sendFile', formData, {
+        const response = await axios.post(`${apiBase}/messages/sendFile`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
+          withCredentials: true,
         });
         const msg = response.data;
         setMessages((prev) => [...prev, msg]);
@@ -619,11 +628,12 @@ function App() {
       formData.append('username', username);
 
       try {
-        const response = await axios.post('http://localhost:5000/api/user/update-profile-pic', formData, {
+        const response = await axios.post(`${apiBase}/user/update-profile-pic`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
+          withCredentials: true,
         });
-        setProfilePic(`/uploads/${response.data.filename}`);
-        setUserDPs((prev) => ({ ...prev, [username]: `/uploads/${response.data.filename}` }));
+        setProfilePic(response.data.filename); // Full S3 URL
+        setUserDPs((prev) => ({ ...prev, [username]: response.data.filename }));
       } catch (error) {
         console.error('Failed to update profile pic:', error);
       } finally {
@@ -881,7 +891,7 @@ function App() {
           <BsInfoCircle />
         </div>
         <img
-          src={profilePic ? `http://localhost:5000${profilePic}` : `https://via.placeholder.com/40?text=${username.charAt(0)}`}
+          src={profilePic || `https://via.placeholder.com/40?text=${username.charAt(0)}`}
           alt={username}
           className="icon"
         />
@@ -916,95 +926,95 @@ function App() {
             toggleSidebar={toggleSidebar}
             onlineUsers={onlineUsers}
           />
-         <div className="message-box" ref={messageBoxRef}>
-  {!recipient ? (
-    <p className="empty-convo">Convo<br />where connection comes to life</p>
-  ) : messages.length === 0 ? (
-    <p className="empty-convo">No messages yet. Start the conversation!</p>
-  ) : (
-    messages.reduce((acc, msg, index) => {
-      const currentDate = new Date(msg.timestamp).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      });
-      const prevMsg = messages[index - 1];
-      const prevDate = prevMsg
-        ? new Date(prevMsg.timestamp).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-          })
-        : null;
+          <div className="message-box" ref={messageBoxRef}>
+            {!recipient ? (
+              <p className="empty-convo">Convo<br />where connection comes to life</p>
+            ) : messages.length === 0 ? (
+              <p className="empty-convo">No messages yet. Start the conversation!</p>
+            ) : (
+              messages.reduce((acc, msg, index) => {
+                const currentDate = new Date(msg.timestamp).toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                });
+                const prevMsg = messages[index - 1];
+                const prevDate = prevMsg
+                  ? new Date(prevMsg.timestamp).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    })
+                  : null;
 
-      // Add date separator if it's the first message or the date has changed
-      if (index === 0 || currentDate !== prevDate) {
-        acc.push(
-          <div key={`date-${currentDate}-${index}`} className="date-separator">
-            <span>{currentDate}</span>
+                // Add date separator if it's the first message or the date has changed
+                if (index === 0 || currentDate !== prevDate) {
+                  acc.push(
+                    <div key={`date-${currentDate}-${index}`} className="date-separator">
+                      <span>{currentDate}</span>
+                    </div>
+                  );
+                }
+
+                acc.push(
+                  <div
+                    key={msg.messageId || index}
+                    className={msg.username === username ? 'sent-message-container' : 'received-message-container'}
+                  >
+                    {msg.type === 'text' ? (
+                      <div className={msg.username === username ? 'sent-message' : 'received-message'}>
+                        <p onClick={() => toggleReactionPicker(msg.messageId)} style={{ cursor: 'pointer' }}>
+                          {msg.text}
+                          <small>{new Date(msg.timestamp).toLocaleTimeString()}</small>
+                        </p>
+                        {reactionPicker.visible && reactionPicker.messageId === msg.messageId && (
+                          <div className="reaction-picker">
+                            {['👍', '❤️', '😂', '😮', '😢'].map((emoji) => (
+                              <span
+                                key={emoji}
+                                className="reaction-emoji"
+                                onClick={() => handleReaction(msg.messageId, emoji)}
+                              >
+                                {emoji}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {showReactions && reactions[msg.messageId] && (
+                          <div className="reactions">
+                            {Object.entries(reactions[msg.messageId]).map(([user, emojis]) =>
+                              emojis.map((emoji, i) => (
+                                <span key={`${user}-${emoji}-${i}`} className="reaction">
+                                  {emoji}
+                                </span>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className={msg.username === username ? 'sent-message' : 'received-message'}>
+                        {msg.file && (
+                          <a
+                            href={msg.file} // Full S3 URL
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="file-link"
+                            download={msg.type === 'document'}
+                          >
+                            {msg.type === 'image' ? 'View Image' : 'View Document'}
+                          </a>
+                        )}
+                        <small>{new Date(msg.timestamp).toLocaleTimeString()}</small>
+                      </div>
+                    )}
+                  </div>
+                );
+                return acc;
+              }, [])
+            )}
+            {typing && recipient && <p className="typing-indicator">{typing} is typing...</p>}
           </div>
-        );
-      }
-
-      acc.push(
-        <div
-          key={msg.messageId || index}
-          className={msg.username === username ? 'sent-message-container' : 'received-message-container'}
-        >
-          {msg.type === 'text' ? (
-            <div className={msg.username === username ? 'sent-message' : 'received-message'}>
-              <p onClick={() => toggleReactionPicker(msg.messageId)} style={{ cursor: 'pointer' }}>
-                {msg.text}
-                <small>{new Date(msg.timestamp).toLocaleTimeString()}</small>
-              </p>
-              {reactionPicker.visible && reactionPicker.messageId === msg.messageId && (
-                <div className="reaction-picker">
-                  {['👍', '❤️', '😂', '😮', '😢'].map((emoji) => (
-                    <span
-                      key={emoji}
-                      className="reaction-emoji"
-                      onClick={() => handleReaction(msg.messageId, emoji)}
-                    >
-                      {emoji}
-                    </span>
-                  ))}
-                </div>
-              )}
-              {showReactions && reactions[msg.messageId] && (
-                <div className="reactions">
-                  {Object.entries(reactions[msg.messageId]).map(([user, emojis]) =>
-                    emojis.map((emoji, i) => (
-                      <span key={`${user}-${emoji}-${i}`} className="reaction">
-                        {emoji}
-                      </span>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className={msg.username === username ? 'sent-message' : 'received-message'}>
-              {msg.file && (
-                <a
-                  href={`http://localhost:5000${msg.file}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="file-link"
-                  download={msg.type === 'document'}
-                >
-                  {msg.type === 'image' ? 'View Image' : 'View Document'}
-                </a>
-              )}
-              <small>{new Date(msg.timestamp).toLocaleTimeString()}</small>
-            </div>
-          )}
-        </div>
-      );
-      return acc;
-    }, [])
-  )}
-  {typing && recipient && <p className="typing-indicator">{typing} is typing...</p>}
-</div>
           {recipient && (
             <MessageInput
               message={message}
