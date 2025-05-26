@@ -6,8 +6,15 @@ import { IoSearchOutline, IoSettingsOutline, IoSendSharp, IoAttachOutline, IoChe
 import { BsChatLeft, BsInfoCircle } from 'react-icons/bs';
 import { FiUser } from 'react-icons/fi';
 
+// API and backend URLs
 const apiBase = process.env.REACT_APP_API_BASE || 'https://convodb1.onrender.com/api';
 const backendUrl = process.env.REACT_APP_BACKEND_URL || 'https://convodb1.onrender.com';
+
+// Axios instance with default configuration
+const api = axios.create({
+  baseURL: apiBase,
+  withCredentials: true,
+});
 
 // Socket.IO connection
 const socket = io(backendUrl, {
@@ -22,6 +29,18 @@ const debounce = (func, delay) => {
     clearTimeout(timeoutId);
     timeoutId = setTimeout(() => func.apply(null, args), delay);
   };
+};
+
+// Retry utility
+const retry = async (fn, retries = 3, delay = 1000) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (i === retries - 1) throw error;
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
 };
 
 // Sidebar Component
@@ -57,12 +76,12 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
             >
               {userDPs[user] ? (
                 <img
-                  src={userDPs[user]} // Full S3 URL
+                  src={`${backendUrl}/Uploads/${userDPs[user]}`}
                   alt={user}
                   className="user-avatar"
                   onClick={(e) => {
                     e.stopPropagation();
-                    showContactPicModal(user, userDPs[user]);
+                    showContactPicModal(user, `${backendUrl}/Uploads/${userDPs[user]}`);
                   }}
                   style={{ cursor: 'pointer' }}
                 />
@@ -103,7 +122,7 @@ const ChatHeader = ({ recipient, username, profilePic, userDPs, setIsSettingsOpe
           <>
             {userDPs[recipient] ? (
               <img
-                src={userDPs[recipient]} // Full S3 URL
+                src={`${backendUrl}/Uploads/${userDPs[recipient]}`}
                 alt={recipient}
                 className="profile-pic"
               />
@@ -133,7 +152,7 @@ const UserProfile = ({ username, profilePic, setView }) => {
       <IoChevronBack className="close-button" onClick={() => setView('chat')} />
       <div className="profile-info">
         <img
-          src={profilePic || `https://via.placeholder.com/120?text=${username.charAt(0)}`}
+          src={profilePic ? `${backendUrl}/Uploads/${profilePic}` : `https://via.placeholder.com/120?text=${username.charAt(0)}`}
           alt={username}
           className="profile-pic-large"
         />
@@ -156,9 +175,7 @@ const InfoPage = ({ setView }) => {
           <li>Search for friends using the search bar.</li>
           <li>Send messages or files by typing and attaching.</li>
           <li>Customize your profile in the settings.</li>
-          <li>Add reactions to messages to express yourself!</li>
         </ul>
-        <p>Enjoy your conversations and let us know how we can improve!</p>
       </div>
     </div>
   );
@@ -190,7 +207,7 @@ const SettingsSidebar = ({ isSettingsOpen, setIsSettingsOpen, username, profileP
       </div>
       <div className="profile-section">
         <img
-          src={profilePic || `https://via.placeholder.com/120?text=${username.charAt(0)}`}
+          src={profilePic ? `${backendUrl}/Uploads/${profilePic}` : `https://via.placeholder.com/120?text=${username.charAt(0)}`}
           alt={username}
           className="profile-pic-large"
         />
@@ -220,7 +237,7 @@ const SettingsSidebar = ({ isSettingsOpen, setIsSettingsOpen, username, profileP
           <div className="option appearance-option">
             Appearance
             <div className="theme-toggle" onClick={toggleTheme}>
-              <div className={`theme-toggle-slider ${theme === 'dark' ? 'checked' : ''}`}>
+              <div className={`theme-toggle ${theme === 'dark' ? 'checked' : ''}`}>
                 <div className="theme-toggle-icon">
                   <div className="theme-icon-part sun"></div>
                   {[...Array(8)].map((_, i) => (
@@ -349,63 +366,91 @@ function App() {
   const fetchUnreadMessages = useCallback(async () => {
     if (username) {
       try {
-        const response = await axios.get(`${apiBase}/messages/unread/${username}`, { withCredentials: true });
+        const response = await retry(() =>
+          api.get(`/messages/unread/${username.toLowerCase()}`)
+        );
         setUnreadMessages(response.data);
       } catch (error) {
-        console.error('Failed to fetch unread messages:', error);
+        console.error('Unread messages error:', {
+          message: error.message,
+          response: error.response?.data,
+          status: error.response?.status,
+        });
       }
     }
   }, [username]);
 
   // Fetch users
-  const fetchUsers = useCallback(async (query = '') => {
-    try {
-      const response = await axios.get(`${apiBase}/users/search`, {
-        params: { query, currentUser: username },
-        withCredentials: true,
-      });
-      let uniqueUsers = [];
-      if (response.data && Array.isArray(response.data)) {
-        uniqueUsers = [...new Set([...response.data])].filter((u) => u !== username);
-        if (!query) {
-          uniqueUsers = [...new Set([...uniqueUsers, ...contactedUsernames])].filter((u) => u !== username);
+  const fetchUsers = useCallback(
+    async (query = '') => {
+      if (!username) {
+        setError('Username not set');
+        return;
+      }
+      try {
+        const response = await retry(() =>
+          api.get('/users/search', {
+            params: { query, currentUser: username.toLowerCase() },
+          })
+        );
+        let uniqueUsers = [];
+        if (response.data && Array.isArray(response.data)) {
+          uniqueUsers = [...new Set([...response.data])].filter(
+            (u) => u.toLowerCase() !== username.toLowerCase()
+          );
+          if (query) {
+            uniqueUsers = [...new Set([...uniqueUsers, ...contactedUsernames])].filter(
+              (u) => u.toLowerCase() !== username.toLowerCase()
+            );
+          } else {
+            uniqueUsers = [...contactedUsernames].filter(
+              (u) => u.toLowerCase() !== username.toLowerCase()
+            );
+          }
+          setUsers(uniqueUsers);
+          const dpPromises = uniqueUsers.map((user) =>
+            api
+              .get(`/user/profile-pic/${user}`)
+              .then((res) => ({ user, profilePic: res.data.profilePic }))
+              .catch((err) => {
+                console.error(`Profile pic error for ${user}:`, err.message);
+                return { user, profilePic: null };
+              })
+          );
+          const dps = await Promise.all(dpPromises);
+          setUserDPs(Object.fromEntries(dps.map(({ user, profilePic }) => [user, profilePic])));
+          if (uniqueUsers.length > 0) fetchUnreadMessages();
         }
-      } else if (!query) {
-        uniqueUsers = [...contactedUsernames].filter((u) => u !== username);
+      } catch (error) {
+        console.error('Fetch users error:', {
+          message: error.message,
+          response: error.response?.data,
+          status: error.response?.status,
+        });
+        setError('Failed to load contacts. Please try again.');
+        if (query) {
+          setUsers([...contactedUsernames].filter((u) => u.toLowerCase() !== username.toLowerCase()));
+        } else {
+          setUsers([]);
+        }
       }
-      setUsers(uniqueUsers);
-      const dpPromises = uniqueUsers.map((user) =>
-        axios
-          .get(`${apiBase}/user/profile-pic/${user}`, { withCredentials: true })
-          .then((res) => ({ user, pic: res.data.profilePic }))
-          .catch(() => ({ user, pic: null }))
-      );
-      const dps = await Promise.all(dpPromises);
-      setUserDPs(Object.fromEntries(dps.map(({ user, pic }) => [user, pic])));
-      if (uniqueUsers.length > 0) fetchUnreadMessages();
-    } catch (error) {
-      console.error('Failed to fetch users:', error.message);
-      setError('Failed to load contacts. Please try again.');
-      if (!query) {
-        setUsers([...contactedUsernames].filter((u) => u !== username));
-      } else {
-        setUsers([]);
-      }
-    }
-  }, [username, fetchUnreadMessages, contactedUsernames]);
+    },
+    [username, fetchUnreadMessages, contactedUsernames]
+  );
 
   // Socket and authentication logic
   useEffect(() => {
     const token = localStorage.getItem('token');
     const storedUsername = localStorage.getItem('username');
     if (token && storedUsername) {
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       setIsAuthenticated(true);
       setUsername(storedUsername);
       socket.emit('registerUser', storedUsername);
       fetchUsers();
       fetchUnreadMessages();
-      axios
-        .get(`${apiBase}/user/profile-pic/${storedUsername}`, { withCredentials: true })
+      api
+        .get(`/user/profile-pic/${storedUsername}`)
         .then((response) => setProfilePic(response.data.profilePic))
         .catch((err) => console.error('Failed to fetch profile pic:', err));
       setView('chat');
@@ -417,13 +462,14 @@ function App() {
     if (tokenParam && usernameParam) {
       localStorage.setItem('token', tokenParam);
       localStorage.setItem('username', decodeURIComponent(usernameParam));
+      api.defaults.headers.common['Authorization'] = `Bearer ${tokenParam}`;
       setIsAuthenticated(true);
       setUsername(decodeURIComponent(usernameParam));
       socket.emit('registerUser', decodeURIComponent(usernameParam));
       fetchUsers();
       fetchUnreadMessages();
-      axios
-        .get(`${apiBase}/user/profile-pic/${decodeURIComponent(usernameParam)}`, { withCredentials: true })
+      api
+        .get(`/user/profile-pic/${decodeURIComponent(usernameParam)}`)
         .then((response) => setProfilePic(response.data.profilePic))
         .catch((err) => console.error('Failed to fetch profile pic:', err));
       setView('chat');
@@ -433,14 +479,14 @@ function App() {
     if (isAuthenticated) {
       const handleReceiveMessage = (msg) => {
         if (msg.username !== username && !messages.some((m) => m.messageId === msg.messageId)) {
-          setContactedUsernames((prev) => prev.includes(msg.username) ? prev : [...prev, msg.username]);
+          setContactedUsernames((prev) => (prev.includes(msg.username) ? prev : [...prev, msg.username]));
           if (msg.username === recipient) {
             setMessages((prev) => [...prev, msg]);
             setUnreadMessages((prev) => ({
               ...prev,
               [msg.username]: 0,
             }));
-            axios.post(`${apiBase}/messages/mark-read/${username}/${msg.username}`, {}, { withCredentials: true });
+            api.post(`/messages/mark-read/${username}/${msg.username}`);
           } else {
             setUnreadMessages((prev) => ({
               ...prev,
@@ -490,7 +536,7 @@ function App() {
   const loadChatHistory = async (currentUser, selectedRecipient) => {
     if (selectedRecipient) {
       try {
-        const response = await axios.get(`${apiBase}/messages/${currentUser}/${selectedRecipient}`, { withCredentials: true });
+        const response = await api.get(`/messages/${currentUser}/${selectedRecipient}`);
         setMessages(
           response.data.map((msg) => ({
             messageId: msg.messageId,
@@ -505,8 +551,8 @@ function App() {
           ...prev,
           [selectedRecipient]: 0,
         }));
-        setContactedUsernames((prev) => prev.includes(selectedRecipient) ? prev : [...prev, selectedRecipient]);
-        await axios.post(`${apiBase}/messages/mark-read/${currentUser}/${selectedRecipient}`, {}, { withCredentials: true });
+        setContactedUsernames((prev) => (prev.includes(selectedRecipient) ? prev : [...prev, selectedRecipient]));
+        await api.post(`/messages/mark-read/${currentUser}/${selectedRecipient}`);
       } catch (error) {
         console.error('Failed to fetch chat history:', error);
         setMessages([]);
@@ -537,11 +583,12 @@ function App() {
       return;
     }
     try {
-      await axios.post(`${apiBase}/auth/register`, { email, username, password }, { withCredentials: true });
+      await api.post('/auth/register', { email, username, password });
       setView('login');
       setError('');
     } catch (error) {
       setError(error.response?.data?.message || 'Registration failed');
+      console.error('Registration error:', error);
     }
   };
 
@@ -549,9 +596,10 @@ function App() {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post(`${apiBase}/auth/login`, { email, password }, { withCredentials: true });
+      const response = await api.post('/auth/login', { email, password });
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('username', response.data.username);
+      api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
       setIsAuthenticated(true);
       setUsername(response.data.username);
       setView('chat');
@@ -561,6 +609,7 @@ function App() {
       setError('');
     } catch (error) {
       setError(error.response?.data?.message || 'Login failed');
+      console.error('Login error:', error);
     }
   };
 
@@ -576,7 +625,7 @@ function App() {
       };
       socket.emit('sendMessage', { recipient, message: msg.text, type: 'text' });
       setMessages((prev) => [...prev, msg]);
-      setContactedUsernames((prev) => prev.includes(recipient) ? prev : [...prev, recipient]);
+      setContactedUsernames((prev) => (prev.includes(recipient) ? prev : [...prev, recipient]));
       setMessage('');
       socket.emit('stopTyping', { recipient });
       await fetchUnreadMessages();
@@ -595,9 +644,8 @@ function App() {
       formData.append('timestamp', new Date().toISOString());
 
       try {
-        const response = await axios.post(`${apiBase}/messages/sendFile`, formData, {
+        const response = await api.post('/messages/sendFile', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
-          withCredentials: true,
         });
         const msg = response.data;
         setMessages((prev) => [...prev, msg]);
@@ -607,7 +655,7 @@ function App() {
           type: msg.type,
           file: msg.file,
         });
-        setContactedUsernames((prev) => prev.includes(recipient) ? prev : [...prev, recipient]);
+        setContactedUsernames((prev) => (prev.includes(recipient) ? prev : [...prev, recipient]));
         await fetchUnreadMessages();
       } catch (error) {
         console.error('Failed to send file:', error.response?.data?.message || error.message);
@@ -628,11 +676,10 @@ function App() {
       formData.append('username', username);
 
       try {
-        const response = await axios.post(`${apiBase}/user/update-profile-pic`, formData, {
+        const response = await api.post('/user/update-profile-pic', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
-          withCredentials: true,
         });
-        setProfilePic(response.data.filename); // Full S3 URL
+        setProfilePic(response.data.filename);
         setUserDPs((prev) => ({ ...prev, [username]: response.data.filename }));
       } catch (error) {
         console.error('Failed to update profile pic:', error);
@@ -739,7 +786,7 @@ function App() {
   const showContactPicModal = (contactUsername, contactProfilePic) => {
     setContactModal({ isOpen: true, username: contactUsername, profilePic: contactProfilePic });
   };
-  const closeContactPicModal = () => {
+  const closeContactModal = () => {
     setContactModal({ isOpen: false, username: '', profilePic: null });
   };
 
@@ -749,13 +796,13 @@ function App() {
 
   if (!isAuthenticated) {
     return (
-      <div className="signup-container">
+     <div className="signup-container">
         <div className={`signup-box ${isSignupActive ? 'signup-mode' : ''}`}>
           <h2>{view === 'login' ? 'Sign In' : 'Sign Up'}</h2>
           <div className="signup-nav">
             <div className="signup">
               <button
-                className={view === 'register' ? 'active-tab' : ''}
+                className={`nav ${view === 'register' ? 'active-tab' : ''}`}
                 onClick={() => {
                   setView('register');
                   setIsSignupActive(true);
@@ -766,7 +813,7 @@ function App() {
             </div>
             <div className="signin">
               <button
-                className={view === 'login' ? 'active-tab' : ''}
+                className={`nav ${view === 'login' ? 'active-tab' : ''}`}
                 onClick={() => {
                   setView('login');
                   setIsSignupActive(false);
@@ -779,7 +826,7 @@ function App() {
           <div className="signup-form">
             {error && <p className="error">{error}</p>}
             {view === 'login' ? (
-              <>
+              <form onSubmit={handleLogin}>
                 <input
                   type="email"
                   value={email}
@@ -796,22 +843,22 @@ function App() {
                   className="signup-input"
                   required
                 />
-                <button type="submit" className="signup-button" onClick={handleLogin}>
+                <button type="submit" className="signup-button">
                   Sign In
                 </button>
-                <p>
-                  Not registered?{' '}
+                <p className="already-have-account">
+                  Don't have an account?{' '}
                   <a href="#" onClick={() => setView('register')}>
                     Sign Up
                   </a>
                 </p>
                 <div className="or">OR</div>
-                <button className="google-btn" onClick={handleGoogleLogin}>
-                  Sign in with Google
+                <button type="button" className="google-btn" onClick={handleGoogleLogin}>
+                  Sign In with Google
                 </button>
-              </>
+              </form>
             ) : (
-              <>
+              <form onSubmit={handleRegister}>
                 <input
                   type="text"
                   value={username}
@@ -836,20 +883,20 @@ function App() {
                   className="signup-input"
                   required
                 />
-                <button type="submit" className="signup-button" onClick={handleRegister}>
+                <button type="submit" className="signup-button">
                   Sign Up
                 </button>
-                <p>
+                <p className="have-account">
                   Already have an account?{' '}
                   <a href="#" onClick={() => setView('login')}>
                     Sign In
                   </a>
                 </p>
                 <div className="or">OR</div>
-                <button className="google-btn" onClick={handleGoogleLogin}>
+                <button type="button" className="google-btn" onClick={handleGoogleLogin}>
                   Sign Up with Google
                 </button>
-              </>
+              </form>
             )}
           </div>
         </div>
@@ -859,6 +906,7 @@ function App() {
           <p>where connection comes to life</p>
         </div>
       </div>
+  
     );
   }
 
@@ -877,25 +925,25 @@ function App() {
         <ProfilePicModal
           profilePic={contactModal.profilePic}
           username={contactModal.username}
-          onClose={closeContactPicModal}
+          onClose={closeContactModal}
         />
       )}
-      <div className="sidebar-icons">
-        <div className="icon" onClick={() => { setView('chat'); setRecipient(''); setMessages([]); }}>
-          <BsChatLeft />
-        </div>
-        <div className="icon" onClick={showProfile}>
-          <FiUser />
-        </div>
-        <div className="icon" onClick={showInfo}>
-          <BsInfoCircle />
-        </div>
-        <img
-          src={profilePic || `https://via.placeholder.com/40?text=${username.charAt(0)}`}
-          alt={username}
-          className="icon"
-        />
-      </div>
+<div className="sidebar-icons">
+  <div className="icon" onClick={() => { setView('chat'); setRecipient(''); setMessages([]); }}>
+    <BsChatLeft />
+  </div>
+  <div className="icon" onClick={showProfile}>
+    <FiUser />
+  </div>
+  <div className="icon" onClick={showInfo}>
+    <BsInfoCircle />
+  </div>
+  <img
+    src={profilePic ? `${backendUrl}/Uploads/${profilePic}` : `https://via.placeholder.com/40?text=${username.charAt(0)}`}
+    alt={username}
+    className="icon"
+  />
+</div>
       <Sidebar
         username={username}
         users={searchTerm ? users : contactedUsers}
@@ -947,7 +995,6 @@ function App() {
                     })
                   : null;
 
-                // Add date separator if it's the first message or the date has changed
                 if (index === 0 || currentDate !== prevDate) {
                   acc.push(
                     <div key={`date-${currentDate}-${index}`} className="date-separator">
@@ -996,7 +1043,7 @@ function App() {
                       <div className={msg.username === username ? 'sent-message' : 'received-message'}>
                         {msg.file && (
                           <a
-                            href={msg.file} // Full S3 URL
+                            href={`${backendUrl}/Uploads/${msg.file}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="file-link"
