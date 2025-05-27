@@ -481,60 +481,28 @@ function App() {
   }, [username]);
 
   // Fetch users with optimized search
-const fetchUsers = useCallback(
-  async (query = '') => {
-    if (!username || !isAuthenticated) return;
-    setIsSearching(true);
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) throw new Error('No authentication token');
-      const trimmedQuery = query.trim(); // Trim query
-      const response = await retry(() =>
-        api.get('/users/search', {
-          params: { query: trimmedQuery, currentUser: username.toLowerCase() },
-          headers: { Authorization: `Bearer ${token}` },
-        })
-      );
-      let uniqueUsers = [...new Set(response.data)].filter(
-        (u) => u.toLowerCase() !== username.toLowerCase()
-      );
-      if (!trimmedQuery) {
-        // Include contacted usernames when query is empty
-        uniqueUsers = [...new Set([...uniqueUsers, ...contactedUsernames])].filter(
-          (u) => u.toLowerCase() !== username.toLowerCase()
-        );
-      } else {
-        // Filter contacted usernames by query
-        const localMatches = contactedUsernames.filter(
-          (u) => u.toLowerCase().startsWith(trimmedQuery.toLowerCase()) && u.toLowerCase() !== username.toLowerCase()
-        );
-        uniqueUsers = [...new Set([...uniqueUsers, ...localMatches])];
-      }
-      setUsers(uniqueUsers);
-      const dpPromises = uniqueUsers.map((user) =>
-        api
-          .get(`/user/profile-pic/${user}`, { headers: { Authorization: `Bearer ${token}` } })
-          .then((res) => ({ user, profilePic: res.data.profilePic }))
-          .catch(() => ({ user, profilePic: null }))
-      );
-      const dps = await Promise.all(dpPromises);
-      setUserDPs(Object.fromEntries(dps.map(({ user, profilePic }) => [user, profilePic])));
-      if (uniqueUsers.length > 0) fetchUnreadMessages();
-    } catch (error) {
-      console.error('Fetch users error:', error);
-      setError('Failed to load contacts');
-      setTimeout(() => setError(''), 5000);
-      // Fallback to filtered contacted usernames
-      const filteredContacts = contactedUsernames.filter(
-        (u) => u.toLowerCase().startsWith(query.toLowerCase()) && u.toLowerCase() !== username.toLowerCase()
-      );
-      setUsers(filteredContacts);
-    } finally {
-      setIsSearching(false);
-    }
-  },
-  [username, isAuthenticated, contactedUsernames, fetchUnreadMessages]
-);
+// In App.js, inside the App component
+const fetchUsers = useCallback(async (query = '') => {
+  if (!username || !isAuthenticated) return;
+  try {
+    const response = await api.get('/users/search', {
+      params: { query, currentUser: username },
+    });
+    setUsers(response.data);
+    const dpPromises = response.data.map((user) =>
+      api
+        .get(`/user/profile-pic/${user}`)
+        .then((res) => ({ user, profilePic: res.data.profilePic }))
+        .catch(() => ({ user, profilePic: null }))
+    );
+    const dps = await Promise.all(dpPromises);
+    setUserDPs(Object.fromEntries(dps.map(({ user, profilePic }) => [user, profilePic])));
+  } catch (error) {
+    console.error('Fetch users error:', error);
+    setError('Failed to load contacts');
+    setTimeout(() => setError(''), 5000);
+  }
+}, [username, isAuthenticated]);
 
   // Memoized user list
   const filteredUsers = useMemo(() => {
