@@ -77,7 +77,7 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
               onClick={() => {
                 setRecipient(user);
                 loadChatHistory(username, user);
-                toggleSidebar(false); // Always close on mobile after selection
+                toggleSidebar(false);
                 setSearchTerm('');
               }}
             >
@@ -430,34 +430,42 @@ function App() {
       return;
     }
 
-    if (tokenParam && usernameParam) {
-      localStorage.setItem('token', tokenParam);
-      localStorage.setItem('username', decodeURIComponent(usernameParam));
-      api.defaults.headers.common['Authorization'] = `Bearer ${tokenParam}`;
-      setIsAuthenticated(true);
-      setUsername(decodeURIComponent(usernameParam));
-      socket.emit('registerUser', decodeURIComponent(usernameParam));
-      fetchUsers();
-      fetchUnreadMessages();
-      api
-        .get(`/user/profile-pic/${decodeURIComponent(usernameParam)}`)
-        .then((response) => setProfilePic(response.data.profilePic))
-        .catch((err) => console.error('Failed to fetch profile pic:', err));
-      setView('chat');
-      window.history.replaceState({}, document.title, '/');
-    } else if (token && storedUsername) {
-      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      setIsAuthenticated(true);
-      setUsername(storedUsername);
-      socket.emit('registerUser', storedUsername);
-      fetchUsers();
-      fetchUnreadMessages();
-      api
-        .get(`/user/profile-pic/${storedUsername}`)
-        .then((response) => setProfilePic(response.data.profilePic))
-        .catch((err) => console.error('Failed to fetch profile pic:', err));
-      setView('chat');
-    }
+    const initializeAuth = async () => {
+      if (tokenParam && usernameParam) {
+        localStorage.setItem('token', tokenParam);
+        localStorage.setItem('username', decodeURIComponent(usernameParam));
+        api.defaults.headers.common['Authorization'] = `Bearer ${tokenParam}`;
+        setIsAuthenticated(true);
+        setUsername(decodeURIComponent(usernameParam));
+        socket.emit('registerUser', decodeURIComponent(usernameParam));
+        try {
+          await fetchUsers();
+          await fetchUnreadMessages();
+          const response = await api.get(`/user/profile-pic/${decodeURIComponent(usernameParam)}`);
+          setProfilePic(response.data.profilePic);
+        } catch (err) {
+          console.error('Initialization error:', err);
+        }
+        setView('chat');
+        window.history.replaceState({}, document.title, '/');
+      } else if (token && storedUsername) {
+        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        setIsAuthenticated(true);
+        setUsername(storedUsername);
+        socket.emit('registerUser', storedUsername);
+        try {
+          await fetchUsers();
+          await fetchUnreadMessages();
+          const response = await api.get(`/user/profile-pic/${storedUsername}`);
+          setProfilePic(response.data.profilePic);
+        } catch (err) {
+          console.error('Initialization error:', err);
+        }
+        setView('chat');
+      }
+    };
+
+    initializeAuth();
   }, []);
 
   // Initialize sidebar visibility
@@ -479,26 +487,32 @@ function App() {
 
   // Fetch unread messages
   const fetchUnreadMessages = useCallback(async () => {
-    if (username) {
-      try {
-        const response = await retry(() =>
-          api.get(`/messages/unread/${username.toLowerCase()}`)
-        );
-        setUnreadMessages(response.data);
-      } catch (error) {
-        console.error('Unread messages error:', error);
-      }
+    if (!username) return;
+    try {
+      const response = await retry(() =>
+        api.get(`/messages/unread/${username.toLowerCase()}`)
+      );
+      setUnreadMessages(response.data);
+    } catch (error) {
+      console.error('Unread messages error:', error.message, error);
     }
   }, [username]);
 
   // Fetch users with optimized search
   const fetchUsers = useCallback(
     async (query = '') => {
-      if (!username || !isAuthenticated) return;
+      console.log('Fetching users with:', { query, username, isAuthenticated });
+      if (!username || !isAuthenticated) {
+        console.log('Skipping fetchUsers: username or isAuthenticated missing');
+        setIsSearching(false);
+        return;
+      }
       setIsSearching(true);
       try {
         const token = localStorage.getItem('token');
-        if (!token) throw new Error('No authentication token');
+        if (!token) {
+          throw new Error('No authentication token');
+        }
         const trimmedQuery = query.trim();
         // Local filtering for contactedUsernames
         const localMatches = trimmedQuery
@@ -506,9 +520,8 @@ function App() {
               (u) => u.toLowerCase().startsWith(trimmedQuery.toLowerCase()) && u.toLowerCase() !== username.toLowerCase()
             )
           : contactedUsernames.filter((u) => u.toLowerCase() !== username.toLowerCase());
-        setUsers(localMatches); // Show local matches immediately
+        setUsers(localMatches);
         if (!trimmedQuery && localMatches.length > 0) {
-          // Skip API call if local matches exist and query is empty
           const dpPromises = localMatches.map((user) =>
             api
               .get(`/user/profile-pic/${user}`, { headers: { Authorization: `Bearer ${token}` } })
@@ -518,7 +531,7 @@ function App() {
           const dps = await Promise.all(dpPromises);
           setUserDPs(Object.fromEntries(dps.map(({ user, profilePic }) => [user, profilePic])));
           setIsSearching(false);
-          if (localMatches.length > 0) fetchUnreadMessages();
+          if (localMatches.length > 0) await fetchUnreadMessages();
           return;
         }
         const response = await retry(() =>
@@ -540,10 +553,10 @@ function App() {
         );
         const dps = await Promise.all(dpPromises);
         setUserDPs(Object.fromEntries(dps.map(({ user, profilePic }) => [user, profilePic])));
-        if (uniqueUsers.length > 0) fetchUnreadMessages();
+        if (uniqueUsers.length > 0) await fetchUnreadMessages();
       } catch (error) {
-        console.error('Fetch users error:', error);
-        setError('Failed to load contacts');
+        console.error('Fetch users error:', error.message, error.response?.data || error);
+        setError('Failed to load contacts. Please try again.');
         setTimeout(() => setError(''), 5000);
         const filteredContacts = contactedUsernames.filter(
           (u) => u.toLowerCase().startsWith(query.toLowerCase()) && u.toLowerCase() !== username.toLowerCase()
@@ -563,7 +576,7 @@ function App() {
 
   // Socket handling
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && username) {
       socket.on('connect', () => console.log('Connected to server'));
       socket.on('receiveMessage', (msg) => {
         if (!messages.some((m) => m.messageId === msg.messageId)) {
@@ -674,8 +687,8 @@ function App() {
       setUsername(response.data.username);
       setView('chat');
       socket.emit('registerUser', response.data.username);
-      fetchUsers();
-      fetchUnreadMessages();
+      await fetchUsers();
+      await fetchUnreadMessages();
       setError('');
     } catch (error) {
       setError(error.response?.data?.message || 'Login failed');
@@ -842,12 +855,14 @@ function App() {
 
   // Fetch users on search
   useEffect(() => {
-    if (searchTerm.trim()) {
-      debouncedFetchUsers(searchTerm);
-    } else {
-      fetchUsers();
+    if (isAuthenticated && username) {
+      if (searchTerm.trim()) {
+        debouncedFetchUsers(searchTerm);
+      } else {
+        fetchUsers();
+      }
     }
-  }, [searchTerm, debouncedFetchUsers]);
+  }, [searchTerm, isAuthenticated, username, debouncedFetchUsers]);
 
   // Scroll to bottom
   useEffect(() => {
