@@ -346,6 +346,48 @@ function App() {
       chatIcon.style.backgroundSize = 'contain';
     }
   }, [theme]);
+  useEffect(() => {
+  const token = localStorage.getItem('token');
+  const storedUsername = localStorage.getItem('username');
+  if (token && storedUsername) {
+    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    setIsAuthenticated(true);
+    setUsername(storedUsername);
+    socket.emit('registerUser', storedUsername);
+    fetchUsers();
+    fetchUnreadMessages();
+    api
+      .get(`/user/profile-pic/${storedUsername}`)
+      .then((response) => setProfilePic(response.data.profilePic))
+      .catch((err) => console.error('Failed to fetch profile pic:', err));
+    setView('chat');
+  }
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const tokenParam = urlParams.get('token');
+  const usernameParam = urlParams.get('username');
+  if (tokenParam && usernameParam) {
+    localStorage.setItem('token', tokenParam);
+    localStorage.setItem('username', decodeURIComponent(usernameParam));
+    api.defaults.headers.common['Authorization'] = `Bearer ${tokenParam}`;
+    setIsAuthenticated(true);
+    setUsername(decodeURIComponent(usernameParam));
+    socket.emit('registerUser', decodeURIComponent(usernameParam));
+    fetchUsers();
+    fetchUnreadMessages();
+    api
+      .get(`/user/profile-pic/${decodeURIComponent(usernameParam)}`)
+      .then((response) => setProfilePic(response.data.profilePic))
+      .catch((err) => {
+        console.error('Failed to fetch profile pic after Google auth:', err);
+        setError('Authentication failed. Please try again.');
+      });
+    setView('chat');
+    window.history.replaceState({}, document.title, '/');
+  } else if (tokenParam || usernameParam) {
+    setError('Incomplete authentication data. Please try again.');
+  }
+}, [fetchUsers, fetchUnreadMessages]);
 
   // Initialize sidebar visibility
   useEffect(() => {
@@ -381,81 +423,69 @@ function App() {
   }, [username]);
 
   // Fetch users
-  const fetchUsers = useCallback(
-    async (query = '') => {
-      if (!username || !isAuthenticated) {
-        console.warn('fetchUsers skipped: username or authentication not set');
-        setError('Please log in to view contacts');
-        return;
+const fetchUsers = useCallback(
+  async (query = '') => {
+    if (!username || !isAuthenticated) {
+      console.warn('fetchUsers skipped: username or authentication not set');
+      return;
+    }
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
       }
-      try {
-        const token = localStorage.getItem('token');
-        if (!token) {
-          throw new Error('No authentication token found');
-        }
-        console.log('Fetching users with:', { query, currentUser: username.toLowerCase() });
-        const response = await retry(() =>
-          api.get('/users/search', {
-            params: { query: query || '', currentUser: username.toLowerCase() },
-            headers: { Authorization: `Bearer ${token}` },
-          })
+      const response = await retry(() =>
+        api.get('/users/search', {
+          params: { query: query || '', currentUser: username.toLowerCase() },
+          headers: { Authorization: `Bearer ${token}` }
+        })
+      );
+      let uniqueUsers = [];
+      if (response.data && Array.isArray(response.data)) {
+        uniqueUsers = [...new Set([...response.data])].filter(
+          (u) => u.toLowerCase() !== username.toLowerCase()
         );
-        let uniqueUsers = [];
-        if (response.data && Array.isArray(response.data)) {
-          uniqueUsers = [...new Set([...response.data])].filter(
+        if (query) {
+          uniqueUsers = [...new Set([...uniqueUsers, ...contactedUsernames])].filter(
             (u) => u.toLowerCase() !== username.toLowerCase()
           );
-          if (query) {
-            uniqueUsers = [...new Set([...uniqueUsers, ...contactedUsernames])].filter(
-              (u) => u.toLowerCase() !== username.toLowerCase()
-            );
-          } else {
-            uniqueUsers = [...contactedUsernames].filter(
-              (u) => u.toLowerCase() !== username.toLowerCase()
-            );
-          }
-          setUsers(uniqueUsers);
-          const dpPromises = uniqueUsers.map((user) =>
-            api
-              .get(`/user/profile-pic/${user}`, {
-                headers: { Authorization: `Bearer ${token}` },
-              })
-              .then((res) => ({ user, profilePic: res.data.profilePic }))
-              .catch((err) => {
-                console.error(`Profile pic error for ${user}:`, err.message);
-                return { user, profilePic: null };
-              })
-          );
-          const dps = await Promise.all(dpPromises);
-          setUserDPs(Object.fromEntries(dps.map(({ user, profilePic }) => [user, profilePic])));
-          if (uniqueUsers.length > 0) fetchUnreadMessages();
-        }
-      } catch (error) {
-        console.error('Fetch users error:', {
-          message: error.message,
-          response: error.response?.data,
-          status: error.response?.status,
-        });
-        setError('Failed to load contacts. Please try again.');
-        if (query) {
-          setUsers([...contactedUsernames].filter((u) => u.toLowerCase() !== username.toLowerCase()));
         } else {
-          setUsers([]);
+          uniqueUsers = [...contactedUsernames].filter(
+            (u) => u.toLowerCase() !== username.toLowerCase()
+          );
         }
+        setUsers(uniqueUsers);
+        const dpPromises = uniqueUsers.map((user) =>
+          api
+            .get(`/user/profile-pic/${user}`, { headers: { Authorization: `Bearer ${token}` } })
+            .then((res) => ({ user, profilePic: res.data.profilePic }))
+            .catch((err) => ({ user, profilePic: null }))
+        );
+        const dps = await Promise.all(dpPromises);
+        setUserDPs(Object.fromEntries(dps.map(({ user, profilePic }) => [user, profilePic])));
+        if (uniqueUsers.length > 0) fetchUnreadMessages();
       }
-    },
-    [username, isAuthenticated, fetchUnreadMessages, contactedUsernames]
-  );
+    } catch (error) {
+      console.error('Fetch users error:', error.message);
+      setError('Failed to load contacts. Please try again.');
+      setUsers([...contactedUsernames].filter((u) => u.toLowerCase() !== username.toLowerCase()));
+    }
+  },
+  [username, isAuthenticated, fetchUnreadMessages, contactedUsernames]
+);
 
   // Socket and authentication logic
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    const storedUsername = localStorage.getItem('username');
-    if (token && storedUsername) {
-      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      setIsAuthenticated(true);
-      setUsername(storedUsername);
-      socket.emit('registerUser', storedUsername);
+useEffect(() => {
+  const token = localStorage.getItem('token');
+  const storedUsername = localStorage.getItem('username');
+  
+  console.log('Auth check:', { token: !!token, username: storedUsername, isAuthenticated });
+  
+  if (token && storedUsername) {
+    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    setIsAuthenticated(true);
+    setUsername(storedUsername);
+    socket.emit('registerUser', storedUsername);
       fetchUsers();
       fetchUnreadMessages();
       api
