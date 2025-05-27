@@ -381,64 +381,72 @@ function App() {
   }, [username]);
 
   // Fetch users
-  // Fetch users
-const fetchUsers = useCallback(
-  async (query = '') => {
-    if (!username) {
-      setError('Username not set');
-      return;
-    }
-    console.log('Fetching users with username:', username);
-    try {
-      const response = await retry(() =>
-        api.get('/users/search', {
-          params: { query, currentUser: username.toLowerCase() },
-        })
-      );
-      let uniqueUsers = [];
-      if (response.data && Array.isArray(response.data)) {
-        uniqueUsers = [...new Set([...response.data])].filter(
-          (u) => u.toLowerCase() !== username.toLowerCase()
-        );
-        if (query) {
-          uniqueUsers = [...new Set([...uniqueUsers, ...contactedUsernames])].filter(
-            (u) => u.toLowerCase() !== username.toLowerCase()
-          );
-        } else {
-          uniqueUsers = [...contactedUsernames].filter(
-            (u) => u.toLowerCase() !== username.toLowerCase()
-          );
+  const fetchUsers = useCallback(
+    async (query = '') => {
+      if (!username || !isAuthenticated) {
+        console.warn('fetchUsers skipped: username or authentication not set');
+        setError('Please log in to view contacts');
+        return;
+      }
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          throw new Error('No authentication token found');
         }
-        setUsers(uniqueUsers);
-        const dpPromises = uniqueUsers.map((user) =>
-          api
-            .get(`/user/profile-pic/${user}`)
-            .then((res) => ({ user, profilePic: res.data.profilePic }))
-            .catch((err) => {
-              console.error(`Profile pic error for ${user}:`, err.message);
-              return { user, profilePic: null };
-            })
+        console.log('Fetching users with:', { query, currentUser: username.toLowerCase() });
+        const response = await retry(() =>
+          api.get('/users/search', {
+            params: { query: query || '', currentUser: username.toLowerCase() },
+            headers: { Authorization: `Bearer ${token}` },
+          })
         );
-        const dps = await Promise.all(dpPromises);
-        setUserDPs(Object.fromEntries(dps.map(({ user, profilePic }) => [user, profilePic])));
-        if (uniqueUsers.length > 0) fetchUnreadMessages();
+        let uniqueUsers = [];
+        if (response.data && Array.isArray(response.data)) {
+          uniqueUsers = [...new Set([...response.data])].filter(
+            (u) => u.toLowerCase() !== username.toLowerCase()
+          );
+          if (query) {
+            uniqueUsers = [...new Set([...uniqueUsers, ...contactedUsernames])].filter(
+              (u) => u.toLowerCase() !== username.toLowerCase()
+            );
+          } else {
+            uniqueUsers = [...contactedUsernames].filter(
+              (u) => u.toLowerCase() !== username.toLowerCase()
+            );
+          }
+          setUsers(uniqueUsers);
+          const dpPromises = uniqueUsers.map((user) =>
+            api
+              .get(`/user/profile-pic/${user}`, {
+                headers: { Authorization: `Bearer ${token}` },
+              })
+              .then((res) => ({ user, profilePic: res.data.profilePic }))
+              .catch((err) => {
+                console.error(`Profile pic error for ${user}:`, err.message);
+                return { user, profilePic: null };
+              })
+          );
+          const dps = await Promise.all(dpPromises);
+          setUserDPs(Object.fromEntries(dps.map(({ user, profilePic }) => [user, profilePic])));
+          if (uniqueUsers.length > 0) fetchUnreadMessages();
+        }
+      } catch (error) {
+        console.error('Fetch users error:', {
+          message: error.message,
+          response: error.response?.data,
+          status: error.response?.status,
+        });
+        setError('Failed to load contacts. Please try again.');
+        if (query) {
+          setUsers([...contactedUsernames].filter((u) => u.toLowerCase() !== username.toLowerCase()));
+        } else {
+          setUsers([]);
+        }
       }
-    } catch (error) {
-      console.error('Fetch users error:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-      });
-      setError('Failed to load contacts. Please try again.');
-      if (query) {
-        setUsers([...contactedUsernames].filter((u) => u.toLowerCase() !== username.toLowerCase()));
-      } else {
-        setUsers([]);
-      }
-    }
-  },
-  [username, fetchUnreadMessages, contactedUsernames]
-);
+    },
+    [username, isAuthenticated, fetchUnreadMessages, contactedUsernames]
+  );
+
   // Socket and authentication logic
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -836,15 +844,15 @@ const fetchUsers = useCallback(
                   className="signup-input"
                   required
                 />
-<input
-  type="password"
-  value={password}
-  onChange={(e) => setPassword(e.target.value)}
-  placeholder="Password"
-  className="signup-input"
-  required
-  autocomplete="current-password"
-/>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Password"
+                  className="signup-input"
+                  required
+                  autoComplete="current-password"
+                />
                 <button type="submit" className="signup-button">
                   Sign In
                 </button>
@@ -877,15 +885,15 @@ const fetchUsers = useCallback(
                   className="signup-input"
                   required
                 />
-              <input
-  type="password"
-  value={password}
-  onChange={(e) => setPassword(e.target.value)}
-  placeholder="Password"
-  className="signup-input"
-  required
-  autocomplete="new-password"
-/>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Password"
+                  className="signup-input"
+                  required
+                  autoComplete="new-password"
+                />
                 <button type="submit" className="signup-button">
                   Sign Up
                 </button>
@@ -982,85 +990,60 @@ const fetchUsers = useCallback(
             ) : messages.length === 0 ? (
               <p className="empty-convo">No messages yet. Start the conversation!</p>
             ) : (
-              messages.reduce((acc, msg, index) => {
-                const currentDate = new Date(msg.timestamp).toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                });
-                const prevMsg = messages[index - 1];
-                const prevDate = prevMsg
-                  ? new Date(prevMsg.timestamp).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                    })
-                  : null;
-
-                if (index === 0 || currentDate !== prevDate) {
-                  acc.push(
-                    <div key={`date-${currentDate}-${index}`} className="date-separator">
-                      <span>{currentDate}</span>
-                    </div>
-                  );
-                }
-
-                acc.push(
-                  <div
-                    key={msg.messageId || index}
-                    className={msg.username === username ? 'sent-message-container' : 'received-message-container'}
-                  >
-                    {msg.type === 'text' ? (
-                      <div className={msg.username === username ? 'sent-message' : 'received-message'}>
-                        <p onClick={() => toggleReactionPicker(msg.messageId)} style={{ cursor: 'pointer' }}>
-                          {msg.text}
-                          <small>{new Date(msg.timestamp).toLocaleTimeString()}</small>
-                        </p>
-                        {reactionPicker.visible && reactionPicker.messageId === msg.messageId && (
-                          <div className="reaction-picker">
-                            {['👍', '❤️', '😂', '😮', '😢'].map((emoji) => (
-                              <span
-                                key={emoji}
-                                className="reaction-emoji"
-                                onClick={() => handleReaction(msg.messageId, emoji)}
-                              >
+              messages.map((msg, index) => (
+                <div
+                  key={msg.messageId || `message-${index}`}
+                  className={msg.username === username ? 'sent-message-container' : 'received-message-container'}
+                >
+                  {msg.type === 'text' ? (
+                    <div className={msg.username === username ? 'sent-message' : 'received-message'}>
+                      <p onClick={() => toggleReactionPicker(msg.messageId)} style={{ cursor: 'pointer' }}>
+                        {msg.text}
+                        <small>{new Date(msg.timestamp).toLocaleTimeString()}</small>
+                      </p>
+                      {reactionPicker.visible && reactionPicker.messageId === msg.messageId && (
+                        <div className="reaction-picker">
+                          {['👍', '❤️', '😂', '💪', '🔥'].map((emoji) => (
+                            <span
+                              key={emoji}
+                              className="reaction-emoji"
+                              onClick={() => handleReaction(msg.messageId, emoji)}
+                            >
+                              {emoji}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {showReactions && reactions[msg.messageId] && (
+                        <div className="reactions">
+                          {Object.entries(reactions[msg.messageId]).map(([user, emojis]) =>
+                            emojis.map((emoji, i) => (
+                              <span key={`${user}-${emoji}-${i}`} className="reaction">
                                 {emoji}
                               </span>
-                            ))}
-                          </div>
-                        )}
-                        {showReactions && reactions[msg.messageId] && (
-                          <div className="reactions">
-                            {Object.entries(reactions[msg.messageId]).map(([user, emojis]) =>
-                              emojis.map((emoji, i) => (
-                                <span key={`${user}-${emoji}-${i}`} className="reaction">
-                                  {emoji}
-                                </span>
-                              ))
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className={msg.username === username ? 'sent-message' : 'received-message'}>
-                        {msg.file && (
-                          <a
-                            href={`${backendUrl}/Uploads/${msg.file}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="file-link"
-                            download={msg.type === 'document'}
-                          >
-                            {msg.type === 'image' ? 'View Image' : 'View Document'}
-                          </a>
-                        )}
-                        <small>{new Date(msg.timestamp).toLocaleTimeString()}</small>
-                      </div>
-                    )}
-                  </div>
-                );
-                return acc;
-              }, [])
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className={msg.username === username ? 'sent-message' : 'received-message'}>
+                      {msg.file && (
+                        <a
+                          href={`${backendUrl}/Uploads/${msg.file}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="file-link"
+                          download={msg.type === 'document'}
+                        >
+                          {msg.type === 'image' ? 'View Image' : 'View Document'}
+                        </a>
+                      )}
+                      <small>{new Date(msg.timestamp).toLocaleTimeString()}</small>
+                    </div>
+                  )}
+                </div>
+              ))
             )}
             {typing && recipient && <p className="typing-indicator">{typing} is typing...</p>}
           </div>
