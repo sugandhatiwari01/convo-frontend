@@ -796,7 +796,7 @@ function App() {
 
   if (!isAuthenticated) {
     return (
-     <div className="signup-container">
+      <div className="signup-container">
         <div className={`signup-box ${isSignupActive ? 'signup-mode' : ''}`}>
           <h2>{view === 'login' ? 'Sign In' : 'Sign Up'}</h2>
           <div className="signup-nav">
@@ -906,7 +906,6 @@ function App() {
           <p>where connection comes to life</p>
         </div>
       </div>
-  
     );
   }
 
@@ -928,22 +927,22 @@ function App() {
           onClose={closeContactModal}
         />
       )}
-<div className="sidebar-icons">
-  <div className="icon" onClick={() => { setView('chat'); setRecipient(''); setMessages([]); }}>
-    <BsChatLeft />
-  </div>
-  <div className="icon" onClick={showProfile}>
-    <FiUser />
-  </div>
-  <div className="icon" onClick={showInfo}>
-    <BsInfoCircle />
-  </div>
-  <img
-    src={profilePic ? `${backendUrl}/Uploads/${profilePic}` : `https://via.placeholder.com/40?text=${username.charAt(0)}`}
-    alt={username}
-    className="icon"
-  />
-</div>
+      <div className="sidebar-icons">
+        <div className="icon" onClick={() => { setView('chat'); setRecipient(''); setMessages([]); }}>
+          <BsChatLeft />
+        </div>
+        <div className="icon" onClick={showProfile}>
+          <FiUser />
+        </div>
+        <div className="icon" onClick={showInfo}>
+          <BsInfoCircle />
+        </div>
+        <img
+          src={profilePic ? `${backendUrl}/Uploads/${profilePic}` : `https://via.placeholder.com/40?text=${username.charAt(0)}`}
+          alt={username}
+          className="icon"
+        />
+      </div>
       <Sidebar
         username={username}
         users={searchTerm ? users : contactedUsers}
