@@ -77,7 +77,7 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
               onClick={() => {
                 setRecipient(user);
                 loadChatHistory(username, user);
-                toggleSidebar(false);
+                toggleSidebar(false); // Always close on mobile after selection
                 setSearchTerm('');
               }}
             >
@@ -414,69 +414,50 @@ function App() {
 
   // Initialize authentication
   useEffect(() => {
-    const initializeAuth = async () => {
-      const token = localStorage.getItem('token');
-      const storedUsername = localStorage.getItem('username');
-      const urlParams = new URLSearchParams(window.location.search);
-      const tokenParam = urlParams.get('token');
-      const usernameParam = urlParams.get('username');
-      const errorParam = urlParams.get('error');
+    const token = localStorage.getItem('token');
+    const storedUsername = localStorage.getItem('username');
+    const urlParams = new URLSearchParams(window.location.search);
+    const tokenParam = urlParams.get('token');
+    const usernameParam = urlParams.get('username');
+    const errorParam = urlParams.get('error');
 
-      console.log('Auth check:', { token, storedUsername, tokenParam, usernameParam, errorParam });
+    console.log('Auth check:', { token, storedUsername, tokenParam, usernameParam, errorParam });
 
-      if (errorParam) {
-        setError(`Authentication failed: ${errorParam}`);
-        window.history.replaceState({}, document.title, '/');
-        setTimeout(() => setError(''), 5000);
-        return;
-      }
+    if (errorParam) {
+      setError(`Authentication failed: ${errorParam}`);
+      window.history.replaceState({}, document.title, '/');
+      setTimeout(() => setError(''), 5000);
+      return;
+    }
 
-      if (tokenParam && usernameParam) {
-        const decodedUsername = decodeURIComponent(usernameParam);
-        localStorage.setItem('token', tokenParam);
-        localStorage.setItem('username', decodedUsername);
-        api.defaults.headers.common['Authorization'] = `Bearer ${tokenParam}`;
-        setUsername(decodedUsername);
-        setIsAuthenticated(true);
-        socket.emit('registerUser', decodedUsername);
-        try {
-          const response = await api.get(`/user/profile-pic/${decodedUsername}`);
-          setProfilePic(response.data.profilePic);
-          // Wait for username to be set before fetching users
-          if (decodedUsername) {
-            await fetchUsers();
-            await fetchUnreadMessages();
-          }
-        } catch (err) {
-          console.error('Initialization error:', err.message, err);
-          setError('Failed to initialize profile');
-          setTimeout(() => setError(''), 5000);
-        }
-        setView('chat');
-        window.history.replaceState({}, document.title, '/');
-      } else if (token && storedUsername) {
-        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        setUsername(storedUsername);
-        setIsAuthenticated(true);
-        socket.emit('registerUser', storedUsername);
-        try {
-          const response = await api.get(`/user/profile-pic/${storedUsername}`);
-          setProfilePic(response.data.profilePic);
-          // Wait for username to be set before fetching users
-          if (storedUsername) {
-            await fetchUsers();
-            await fetchUnreadMessages();
-          }
-        } catch (err) {
-          console.error('Initialization error:', err.message, err);
-          setError('Failed to initialize profile');
-          setTimeout(() => setError(''), 5000);
-        }
-        setView('chat');
-      }
-    };
-
-    initializeAuth();
+    if (tokenParam && usernameParam) {
+      localStorage.setItem('token', tokenParam);
+      localStorage.setItem('username', decodeURIComponent(usernameParam));
+      api.defaults.headers.common['Authorization'] = `Bearer ${tokenParam}`;
+      setIsAuthenticated(true);
+      setUsername(decodeURIComponent(usernameParam));
+      socket.emit('registerUser', decodeURIComponent(usernameParam));
+      fetchUsers();
+      fetchUnreadMessages();
+      api
+        .get(`/user/profile-pic/${decodeURIComponent(usernameParam)}`)
+        .then((response) => setProfilePic(response.data.profilePic))
+        .catch((err) => console.error('Failed to fetch profile pic:', err));
+      setView('chat');
+      window.history.replaceState({}, document.title, '/');
+    } else if (token && storedUsername) {
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      setIsAuthenticated(true);
+      setUsername(storedUsername);
+      socket.emit('registerUser', storedUsername);
+      fetchUsers();
+      fetchUnreadMessages();
+      api
+        .get(`/user/profile-pic/${storedUsername}`)
+        .then((response) => setProfilePic(response.data.profilePic))
+        .catch((err) => console.error('Failed to fetch profile pic:', err));
+      setView('chat');
+    }
   }, []);
 
   // Initialize sidebar visibility
@@ -498,47 +479,36 @@ function App() {
 
   // Fetch unread messages
   const fetchUnreadMessages = useCallback(async () => {
-    if (!username) return;
-    try {
-      const response = await retry(() =>
-        api.get(`/messages/unread/${username.toLowerCase()}`)
-      );
-      setUnreadMessages(response.data);
-    } catch (error) {
-      console.error('Unread messages error:', error.message, error);
-      setError('Failed to load unread messages');
-      setTimeout(() => setError(''), 5000);
+    if (username) {
+      try {
+        const response = await retry(() =>
+          api.get(`/messages/unread/${username.toLowerCase()}`)
+        );
+        setUnreadMessages(response.data);
+      } catch (error) {
+        console.error('Unread messages error:', error);
+      }
     }
   }, [username]);
 
   // Fetch users with optimized search
   const fetchUsers = useCallback(
     async (query = '') => {
-      if (!username || !isAuthenticated || !username.trim()) {
-        console.log('Skipping fetchUsers: username or isAuthenticated missing');
-        setUsers([]);
-        setIsSearching(false);
-        return;
-      }
+      if (!username || !isAuthenticated) return;
       setIsSearching(true);
       try {
         const token = localStorage.getItem('token');
-        if (!token) {
-          throw new Error('No authentication token found');
-        }
-        const trimmedQuery = query.trim().toLowerCase();
+        if (!token) throw new Error('No authentication token');
+        const trimmedQuery = query.trim();
         // Local filtering for contactedUsernames
         const localMatches = trimmedQuery
           ? contactedUsernames.filter(
-              (u) => u.toLowerCase().startsWith(trimmedQuery) && u.toLowerCase() !== username.toLowerCase()
+              (u) => u.toLowerCase().startsWith(trimmedQuery.toLowerCase()) && u.toLowerCase() !== username.toLowerCase()
             )
           : contactedUsernames.filter((u) => u.toLowerCase() !== username.toLowerCase());
-        
-        // Set local matches immediately
-        setUsers(localMatches);
-        
-        // Fetch profile pictures for local matches
-        if (localMatches.length > 0) {
+        setUsers(localMatches); // Show local matches immediately
+        if (!trimmedQuery && localMatches.length > 0) {
+          // Skip API call if local matches exist and query is empty
           const dpPromises = localMatches.map((user) =>
             api
               .get(`/user/profile-pic/${user}`, { headers: { Authorization: `Bearer ${token}` } })
@@ -546,74 +516,39 @@ function App() {
               .catch(() => ({ user, profilePic: null }))
           );
           const dps = await Promise.all(dpPromises);
-          setUserDPs((prev) => ({
-            ...prev,
-            ...Object.fromEntries(dps.map(({ user, profilePic }) => [user, profilePic])),
-          }));
-        }
-
-        // Skip API call if query is empty and local matches exist
-        if (!trimmedQuery && localMatches.length > 0) {
+          setUserDPs(Object.fromEntries(dps.map(({ user, profilePic }) => [user, profilePic])));
           setIsSearching(false);
-          await fetchUnreadMessages();
+          if (localMatches.length > 0) fetchUnreadMessages();
           return;
         }
-
-        // Fetch additional users from backend
         const response = await retry(() =>
           api.get('/users/search', {
             params: { query: trimmedQuery, currentUser: username.toLowerCase() },
             headers: { Authorization: `Bearer ${token}` },
           })
         );
-
         let uniqueUsers = [...new Set(response.data)].filter(
           (u) => u.toLowerCase() !== username.toLowerCase()
         );
         uniqueUsers = [...new Set([...uniqueUsers, ...localMatches])];
         setUsers(uniqueUsers);
-
-        // Fetch profile pictures for all users
-        if (uniqueUsers.length > 0) {
-          const dpPromises = uniqueUsers.map((user) =>
-            api
-              .get(`/user/profile-pic/${user}`, { headers: { Authorization: `Bearer ${token}` } })
-              .then((res) => ({ user, profilePic: res.data.profilePic }))
-              .catch(() => ({ user, profilePic: null }))
-          );
-          const dps = await Promise.all(dpPromises);
-          setUserDPs((prev) => ({
-            ...prev,
-            ...Object.fromEntries(dps.map(({ user, profilePic }) => [user, profilePic])),
-          }));
-          await fetchUnreadMessages();
-        }
+        const dpPromises = uniqueUsers.map((user) =>
+          api
+            .get(`/user/profile-pic/${user}`, { headers: { Authorization: `Bearer ${token}` } })
+            .then((res) => ({ user, profilePic: res.data.profilePic }))
+            .catch(() => ({ user, profilePic: null }))
+        );
+        const dps = await Promise.all(dpPromises);
+        setUserDPs(Object.fromEntries(dps.map(({ user, profilePic }) => [user, profilePic])));
+        if (uniqueUsers.length > 0) fetchUnreadMessages();
       } catch (error) {
-        console.error('Fetch users error:', error.message, error.response?.data || error);
-        setError('Unable to fetch users from server. Showing recent contacts.');
+        console.error('Fetch users error:', error);
+        setError('Failed to load contacts');
         setTimeout(() => setError(''), 5000);
-        // Fallback to local contacts
-        const filteredContacts = trimmedQuery
-          ? contactedUsernames.filter(
-              (u) => u.toLowerCase().startsWith(trimmedQuery) && u.toLowerCase() !== username.toLowerCase()
-            )
-          : contactedUsernames.filter((u) => u.toLowerCase() !== username.toLowerCase());
+        const filteredContacts = contactedUsernames.filter(
+          (u) => u.toLowerCase().startsWith(query.toLowerCase()) && u.toLowerCase() !== username.toLowerCase()
+        );
         setUsers(filteredContacts);
-        // Fetch profile pictures for fallback contacts
-        if (filteredContacts.length > 0) {
-          const token = localStorage.getItem('token');
-          const dpPromises = filteredContacts.map((user) =>
-            api
-              .get(`/user/profile-pic/${user}`, { headers: { Authorization: `Bearer ${token}` } })
-              .then((res) => ({ user, profilePic: res.data.profilePic }))
-              .catch(() => ({ user, profilePic: null }))
-          );
-          const dps = await Promise.all(dpPromises);
-          setUserDPs((prev) => ({
-            ...prev,
-            ...Object.fromEntries(dps.map(({ user, profilePic }) => [user, profilePic])),
-          }));
-        }
       } finally {
         setIsSearching(false);
       }
@@ -628,7 +563,7 @@ function App() {
 
   // Socket handling
   useEffect(() => {
-    if (isAuthenticated && username) {
+    if (isAuthenticated) {
       socket.on('connect', () => console.log('Connected to server'));
       socket.on('receiveMessage', (msg) => {
         if (!messages.some((m) => m.messageId === msg.messageId)) {
@@ -657,7 +592,6 @@ function App() {
         );
       });
       return () => {
-        socket.off('connect');
         socket.off('receiveMessage');
         socket.off('userTyping');
         socket.off('userStatus');
@@ -670,22 +604,22 @@ function App() {
     if (selectedRecipient) {
       try {
         const response = await api.get(`/messages/${currentUser}/${selectedRecipient}`);
-        setMessages(response.data.map((msg) => ({
-          messageId: msg.messageId,
-          username: msg.sender,
-          text: msg.text,
-          timestamp: msg.timestamp,
-          type: msg.type || 'text',
-          file: msg.file || null,
-        })));
+        setMessages(
+          response.data.map((msg) => ({
+            messageId: msg.messageId,
+            username: msg.sender,
+            text: msg.text,
+            timestamp: msg.timestamp,
+            type: msg.type || 'text',
+            file: msg.file || null,
+          }))
+        );
         setUnreadMessages((prev) => ({ ...prev, [selectedRecipient]: 0 }));
         setContactedUsernames((prev) => (prev.includes(selectedRecipient) ? prev : [...prev, selectedRecipient]));
         await api.post(`/messages/mark-read/${currentUser}/${selectedRecipient}`);
       } catch (error) {
-        console.error('Failed to load chat history:', error.message, error);
+        console.error('Failed to fetch chat history:', error);
         setMessages([]);
-        setError('Failed to load messages');
-        setTimeout(() => setError(''), 5000);
       }
     } else {
       setMessages([]);
@@ -695,13 +629,12 @@ function App() {
   // Google login
   const handleGoogleLogin = () => {
     const googleAuthUrl = `${backendUrl}/auth/google`;
+    console.log('Initiating Google Auth:', googleAuthUrl);
     try {
       window.location.href = googleAuthUrl;
-      console.log('Initiating Google login:', googleAuthUrl);
     } catch (error) {
-      console.error('Google Auth error:', error.message, error);
-      setError('Failed to initiate Google login');
-      setTimeout(() => setError(''), 5000);
+      console.error('Google Auth redirect error:', error);
+      setError('Failed to initiate Google authentication');
     }
   };
 
@@ -709,7 +642,7 @@ function App() {
   const handleRegister = async (e) => {
     e.preventDefault();
     if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
-      setError('Invalid username format');
+      setError('Username must be 3-20 characters (letters, numbers, underscores)');
       return;
     }
     if (!/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(email)) {
@@ -717,7 +650,7 @@ function App() {
       return;
     }
     if (password.length < 6) {
-      setError('Password too short');
+      setError('Password must be at least 6 characters');
       return;
     }
     try {
@@ -725,9 +658,7 @@ function App() {
       setView('login');
       setError('');
     } catch (error) {
-      console.error('Registration error:', error.message, error.response?.data);
       setError(error.response?.data?.message || 'Registration failed');
-      setTimeout(() => setError(''), 5000);
     }
   };
 
@@ -739,20 +670,15 @@ function App() {
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('username', response.data.username);
       api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
-      setUsername(response.data.username);
       setIsAuthenticated(true);
+      setUsername(response.data.username);
       setView('chat');
       socket.emit('registerUser', response.data.username);
-      // Wait for username to be set before fetching users
-      if (response.data.username) {
-        await fetchUsers();
-        await fetchUnreadMessages();
-      }
+      fetchUsers();
+      fetchUnreadMessages();
       setError('');
     } catch (error) {
-      console.error('Login error:', error.message, error.response?.data);
       setError(error.response?.data?.message || 'Login failed');
-      setTimeout(() => setError(''), 5000);
     }
   };
 
@@ -787,7 +713,7 @@ function App() {
         socket.emit('stopTyping', { recipient });
         await fetchUnreadMessages();
       } catch (error) {
-        console.error('Send message error:', error.message, error);
+        console.error('Failed to send message:', error);
         setError('Failed to send message');
         setTimeout(() => setError(''), 5000);
       }
@@ -814,9 +740,8 @@ function App() {
         setContactedUsernames((prev) => (prev.includes(recipient) ? prev : [...prev, recipient]));
         await fetchUnreadMessages();
       } catch (error) {
-        console.error('Send file error:', error.message, error);
+        console.error('Failed to send file:', error);
         setError('Failed to send file');
-        setTimeout(() => setError(''), 5000);
       } finally {
         fileInputRef.current.disabled = false;
         fileInputRef.current.value = '';
@@ -839,9 +764,8 @@ function App() {
         setProfilePic(response.data.filename);
         setUserDPs((prev) => ({ ...prev, [username]: response.data.filename }));
       } catch (error) {
-        console.error('Profile pic update error:', error.message, error);
+        console.error('Failed to update profile pic:', error);
         setError('Failed to update profile picture');
-        setTimeout(() => setError(''), 5000);
       } finally {
         profilePicInputRef.current.disabled = false;
         profilePicInputRef.current.value = '';
@@ -892,7 +816,7 @@ function App() {
       }
     };
     document.addEventListener('click', handleClickOutside);
-    return () => document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
   }, [reactionPicker]);
 
   // Logout
@@ -902,7 +826,6 @@ function App() {
     setUsername('');
     setMessages([]);
     setRecipient('');
-    setUsers([]);
     setView('login');
     setProfilePic(null);
     setUserDPs({});
@@ -919,16 +842,12 @@ function App() {
 
   // Fetch users on search
   useEffect(() => {
-    if (isAuthenticated && username && username.trim()) {
-      if (searchTerm.trim()) {
-        debouncedFetchUsers(searchTerm);
-      } else {
-        fetchUsers();
-      }
+    if (searchTerm.trim()) {
+      debouncedFetchUsers(searchTerm);
     } else {
-      setUsers([]);
+      fetchUsers();
     }
-  }, [searchTerm, isAuthenticated, username, debouncedFetchUsers]);
+  }, [searchTerm, debouncedFetchUsers]);
 
   // Scroll to bottom
   useEffect(() => {
@@ -977,7 +896,7 @@ function App() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Email"
-                className="input-field"
+                className="signup-input"
                 required
               />
               <input
@@ -985,19 +904,20 @@ function App() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Password"
-                className="input-field"
+                className="signup-input"
                 required
                 autoComplete="current-password"
               />
-              <button type="submit" className="submit-button">
+              <button type="submit" className="signup-button">
                 Sign In
               </button>
-              <p className="alternate-action">
-                Don't have an account? <a href="#" onClick={() => setView('register')}>
+              <p className="already-have-account">
+                Don't have an account?{' '}
+                <a href="#" onClick={() => setView('register')}>
                   Sign Up
                 </a>
               </p>
-              <div className="separator">or</div>
+              <div className="or">OR</div>
               <button type="button" className="google-btn" onClick={handleGoogleLogin}>
                 Sign In with Google
               </button>
@@ -1007,9 +927,9 @@ function App() {
               <input
                 type="text"
                 value={username}
-                placeholder="Username"
                 onChange={(e) => setUsername(e.target.value)}
-                className="input-field"
+                placeholder="Username"
+                className="signup-input"
                 required
               />
               <input
@@ -1017,27 +937,28 @@ function App() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Email"
-                className="input-field"
+                className="signup-input"
                 required
               />
               <input
                 type="password"
-                placeholder="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="input-field"
+                placeholder="Password"
+                className="signup-input"
                 required
                 autoComplete="new-password"
               />
-              <button type="submit" className="submit-button">
+              <button type="submit" className="signup-button">
                 Sign Up
               </button>
-              <p className="alternate-action">
-                Already have an account? <a href="#" onClick={() => setView('login')}>
+              <p className="have-account">
+                Already have an account?{' '}
+                <a href="#" onClick={() => setView('login')}>
                   Sign In
                 </a>
               </p>
-              <div className="separator">or</div>
+              <div className="or">OR</div>
               <button type="button" className="google-btn" onClick={handleGoogleLogin}>
                 Sign Up with Google
               </button>
@@ -1099,7 +1020,7 @@ function App() {
         isSearching={isSearching}
       />
       {view === 'chat' && (
-        <div className="chat-main">
+        <div className="main-chat">
           <ChatHeader
             recipient={recipient}
             userDPs={userDPs}
@@ -1109,9 +1030,9 @@ function App() {
           />
           <div className="message-box" ref={messageBoxRef}>
             {!recipient ? (
-              <p className="empty-conversation">Convo<br />Connect with friends!</p>
+              <p className="empty-convo">Convo<br />Connect with friends!</p>
             ) : messages.length === 0 ? (
-              <p className="empty-conversation">No messages yet. Send a message to start!</p>
+              <p className="empty-convo">No messages yet. Say hi!</p>
             ) : (
               messages.map((msg, index) => (
                 <Message
@@ -1126,7 +1047,7 @@ function App() {
                 />
               ))
             )}
-            {typing && recipient && <p className="typing-message">{typing} is typing...</p>}
+            {typing && recipient && <p className="typing-indicator">{typing} is typing...</p>}
           </div>
           {recipient && (
             <MessageInput
