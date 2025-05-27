@@ -502,47 +502,48 @@ function App() {
   }, [username]);
 
   // Fetch users with optimized search
-  const fetchUsers = useCallback(
-    async (query = '') => {
-      if (!username || !isAuthenticated) return;
-      setIsSearching(true);
-      try {
-        const token = localStorage.getItem('token');
-        if (!token) throw new Error('No authentication token');
-        const response = await retry(() =>
-          api.get('/users/search', {
-            params: { query: query.toLowerCase(), currentUser: username.toLowerCase() },
-            headers: { Authorization: `Bearer ${token}` },
-          })
-        );
-        let uniqueUsers = [...new Set(response.data)].filter(
-          (u) => u.toLowerCase() !== username.toLowerCase()
-        );
-        if (!query) {
-          const recentUsers = uniqueUsers.filter((u) => contactedUsernames.includes(u));
-          const otherUsers = uniqueUsers.filter((u) => !contactedUsernames.includes(u));
-          uniqueUsers = [...recentUsers, ...otherUsers];
-        }
-        setUsers(uniqueUsers);
-        const dpPromises = uniqueUsers.map((user) =>
-          api
-            .get(`/user/profile-pic/${user}`, { headers: { Authorization: `Bearer ${token}` } })
-            .then((res) => ({ user, profilePic: res.data.profilePic }))
-            .catch(() => ({ user, profilePic: null }))
-        );
-        const dps = await Promise.all(dpPromises);
-        setUserDPs(Object.fromEntries(dps.map(({ user, profilePic }) => [user, profilePic])));
-      } catch (error) {
-        console.error('Fetch users error:', error.message);
-        setError('Failed to load contacts');
-        setTimeout(() => setError(''), 5000);
-        setUsers([...contactedUsernames].filter((u) => u.toLowerCase() !== username.toLowerCase()));
-      } finally {
-        setIsSearching(false);
+ const fetchUsers = useCallback(
+  async (query = '') => {
+    if (!username || !isAuthenticated) return;
+    setIsSearching(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error('No authentication token');
+      const response = await retry(() =>
+        api.get('/users/search', {
+          params: { query: query.toLowerCase(), currentUser: username.toLowerCase() },
+          headers: { Authorization: `Bearer ${token}` },
+        })
+      );
+      let uniqueUsers = [...new Set(response.data)].filter(
+        (u) => u.toLowerCase() !== username.toLowerCase()
+      );
+      if (!query) {
+        const recentUsers = uniqueUsers.filter((u) => contactedUsernames.includes(u));
+        const otherUsers = uniqueUsers.filter((u) => !contactedUsernames.includes(u));
+        uniqueUsers = [...recentUsers, ...otherUsers];
       }
-    },
-    [username, isAuthenticated, contactedUsernames]
-  );
+      setUsers(uniqueUsers);
+      const dpPromises = uniqueUsers.map((user) =>
+        api
+          .get(`/user/profile-pic/${user}`, { headers: { Authorization: `Bearer ${token}` } })
+          .then((res) => ({ user, profilePic: res.data.profilePic }))
+          .catch(() => ({ user, profilePic: null }))
+      );
+      const dps = await Promise.all(dpPromises);
+      setUserDPs(Object.fromEntries(dps.map(({ user, profilePic }) => [user, profilePic])));
+    } catch (error) {
+      console.error('Fetch users error:', error.message);
+      setError('Failed to load contacts');
+      setTimeout(() => setError(''), 5000);
+      setUsers([...contactedUsernames].filter((u) => u.toLowerCase() !== username.toLowerCase()));
+    } finally {
+      setIsSearching(false);
+    }
+  },
+  [username, isAuthenticated, contactedUsernames]
+);
+  
 
   // Search effect
   useEffect(() => {
@@ -671,29 +672,28 @@ function App() {
   };
 
   // Login user
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    try {
-      const response = await api.post('/api/users/login', { email, password });
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('username', response.data.username);
-      api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
-      setIsAuthenticated(true);
-      setUsername(response.data.username);
-      setView('!');
-      socket.emit('registerUser', response.data.username);
-      fetchUsers();
-      fetchUnreadMessages();
-      setError('');
-      setEmail('');
-      setPassword('');
-    } catch (error) {
-      console.error('Login error:', error.message);
-      setError(error.response?.data?.message || 'Login failed');
-      setTimeout(() => setError(''), 5000);
-    }
-  };
-
+const handleLogin = async (e) => {
+  e.preventDefault();
+  try {
+    const response = await api.post('/api/users/login', { email, password });
+    localStorage.setItem('token', response.data.token);
+    localStorage.setItem('username', response.data.username);
+    api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
+    setIsAuthenticated(true);
+    setUsername(response.data.username);
+    setView('chat'); // Fix: Set to 'chat' instead of '!'
+    socket.emit('registerUser', response.data.username);
+    fetchUsers();
+    fetchUnreadMessages();
+    setError('');
+    setEmail('');
+    setPassword('');
+  } catch (error) {
+    console.error('Login error:', error.message);
+    setError(error.response?.data?.message || 'Login failed');
+    setTimeout(() => setError(''), 5000);
+  }
+};
   // Send text message
   const sendMessage = async () => {
     if (!message.trim() || !isAuthenticated || !recipient || isUploading) return;
@@ -805,14 +805,15 @@ function App() {
   };
 
   // Handle typing
-  const handleTyping = (e) => {
-    setMessage(e);
-    if (recipient && e.target.value) {
-      socket.emit('typing', { recipient, username });
-    } else {
-      socket.emit('stopTyping', { recipient });
-    }
-  };
+const handleTyping = (e) => {
+  const value = e.target.value; // Get input value
+  setMessage(value); // Update state with string
+  if (recipient && value) {
+    socket.emit('typing', { recipient, username });
+  } else {
+    socket.emit('stopTyping', { recipient });
+  }
+};
 
   // Handle reactions
   const handleReaction = (messageId, emoji) => {
@@ -873,8 +874,15 @@ function App() {
   };
 
   // Debounced fetch users
-  const debouncedFetchUsers = useCallback(debounce(fetchUsers, 300), [fetchUsers]);
+const debouncedFetchUsers = useCallback(debounce(fetchUsers, 300), [fetchUsers]);
 
+useEffect(() => {
+  if (!searchTerm) {
+    fetchUsers();
+  } else {
+    debouncedFetchUsers(searchTerm);
+  }
+}, [searchTerm, fetchUsers, debouncedFetchUsers]);
   // Scroll to bottom
   useEffect(() => {
     if (messageBoxRef.current) {
