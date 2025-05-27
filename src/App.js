@@ -414,52 +414,57 @@ function App() {
 
   // Initialize authentication
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const storedUsername = localStorage.getItem('username');
-    const urlParams = new URLSearchParams(window.location.search);
-    const tokenParam = urlParams.get('token');
-    const usernameParam = urlParams.get('username');
-    const errorParam = urlParams.get('error');
-
-    console.log('Auth check:', { token, storedUsername, tokenParam, usernameParam, errorParam });
-
-    if (errorParam) {
-      setError(`Authentication failed: ${errorParam}`);
-      window.history.replaceState({}, document.title, '/');
-      setTimeout(() => setError(''), 5000);
-      return;
-    }
-
     const initializeAuth = async () => {
+      const token = localStorage.getItem('token');
+      const storedUsername = localStorage.getItem('username');
+      const urlParams = new URLSearchParams(window.location.search);
+      const tokenParam = urlParams.get('token');
+      const usernameParam = urlParams.get('username');
+      const errorParam = urlParams.get('error');
+
+      console.log('Auth check:', { token, storedUsername, tokenParam, usernameParam, errorParam });
+
+      if (errorParam) {
+        setError(`Authentication failed: ${errorParam}`);
+        window.history.replaceState({}, document.title, '/');
+        setTimeout(() => setError(''), 5000);
+        return;
+      }
+
       if (tokenParam && usernameParam) {
+        const decodedUsername = decodeURIComponent(usernameParam);
         localStorage.setItem('token', tokenParam);
-        localStorage.setItem('username', decodeURIComponent(usernameParam));
+        localStorage.setItem('username', decodedUsername);
         api.defaults.headers.common['Authorization'] = `Bearer ${tokenParam}`;
+        setUsername(decodedUsername);
         setIsAuthenticated(true);
-        setUsername(decodeURIComponent(usernameParam));
-        socket.emit('registerUser', decodeURIComponent(usernameParam));
+        socket.emit('registerUser', decodedUsername);
         try {
-          await fetchUsers();
-          await fetchUnreadMessages();
-          const response = await api.get(`/user/profile-pic/${decodeURIComponent(usernameParam)}`);
+          const response = await api.get(`/user/profile-pic/${decodedUsername}`);
           setProfilePic(response.data.profilePic);
+          await fetchUsers(); // Call after username is set
+          await fetchUnreadMessages();
         } catch (err) {
-          console.error('Initialization error:', err);
+          console.error('Initialization error:', err.message, err);
+          setError('Failed to initialize profile');
+          setTimeout(() => setError(''), 5000);
         }
         setView('chat');
         window.history.replaceState({}, document.title, '/');
       } else if (token && storedUsername) {
         api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        setIsAuthenticated(true);
         setUsername(storedUsername);
+        setIsAuthenticated(true);
         socket.emit('registerUser', storedUsername);
         try {
-          await fetchUsers();
-          await fetchUnreadMessages();
           const response = await api.get(`/user/profile-pic/${storedUsername}`);
           setProfilePic(response.data.profilePic);
+          await fetchUsers(); // Call after username is set
+          await fetchUnreadMessages();
         } catch (err) {
-          console.error('Initialization error:', err);
+          console.error('Initialization error:', err.message, err);
+          setError('Failed to initialize profile');
+          setTimeout(() => setError(''), 5000);
         }
         setView('chat');
       }
@@ -495,15 +500,17 @@ function App() {
       setUnreadMessages(response.data);
     } catch (error) {
       console.error('Unread messages error:', error.message, error);
+      setError('Failed to load unread messages');
+      setTimeout(() => setError(''), 5000);
     }
   }, [username]);
 
   // Fetch users with optimized search
   const fetchUsers = useCallback(
     async (query = '') => {
-      console.log('Fetching users with:', { query, username, isAuthenticated });
       if (!username || !isAuthenticated) {
         console.log('Skipping fetchUsers: username or isAuthenticated missing');
+        setUsers([]);
         setIsSearching(false);
         return;
       }
@@ -511,13 +518,13 @@ function App() {
       try {
         const token = localStorage.getItem('token');
         if (!token) {
-          throw new Error('No authentication token');
+          throw new Error('No authentication token found');
         }
-        const trimmedQuery = query.trim();
+        const trimmedQuery = query.trim().toLowerCase();
         // Local filtering for contactedUsernames
         const localMatches = trimmedQuery
           ? contactedUsernames.filter(
-              (u) => u.toLowerCase().startsWith(trimmedQuery.toLowerCase()) && u.toLowerCase() !== username.toLowerCase()
+              (u) => u.toLowerCase().startsWith(trimmedQuery) && u.toLowerCase() !== username.toLowerCase()
             )
           : contactedUsernames.filter((u) => u.toLowerCase() !== username.toLowerCase());
         setUsers(localMatches);
@@ -556,10 +563,10 @@ function App() {
         if (uniqueUsers.length > 0) await fetchUnreadMessages();
       } catch (error) {
         console.error('Fetch users error:', error.message, error.response?.data || error);
-        setError('Failed to load contacts. Please try again.');
+        setError('Unable to fetch users. Showing recent contacts.');
         setTimeout(() => setError(''), 5000);
         const filteredContacts = contactedUsernames.filter(
-          (u) => u.toLowerCase().startsWith(query.toLowerCase()) && u.toLowerCase() !== username.toLowerCase()
+          (u) => u.toLowerCase().startsWith(trimmedQuery) && u.toLowerCase() !== username.toLowerCase()
         );
         setUsers(filteredContacts);
       } finally {
@@ -601,10 +608,11 @@ function App() {
       });
       socket.on('userStatus', ({ user, status }) => {
         setOnlineUsers((prev) =>
-          status === 'online' ? [...new Set([...prev, user])] : prev.filter((u) => u !== user)
+          status === 'https://api' && status === 'online' ? [...new Set([...prev, user])] : prev.filter((u) => u !== user)
         );
       });
       return () => {
+        socket.off('connect');
         socket.off('receiveMessage');
         socket.off('userTyping');
         socket.off('userStatus');
@@ -617,22 +625,22 @@ function App() {
     if (selectedRecipient) {
       try {
         const response = await api.get(`/messages/${currentUser}/${selectedRecipient}`);
-        setMessages(
-          response.data.map((msg) => ({
-            messageId: msg.messageId,
-            username: msg.sender,
-            text: msg.text,
-            timestamp: msg.timestamp,
-            type: msg.type || 'text',
-            file: msg.file || null,
-          }))
-        );
-        setUnreadMessages((prev) => ({ ...prev, [selectedRecipient]: 0 }));
-        setContactedUsernames((prev) => (prev.includes(selectedRecipient) ? prev : [...prev, selectedRecipient]));
+        setMessages(response.data.map((msg) => ({
+          messageId: msg.messageId,
+          username: msg.sender,
+          text: msg.text',
+          timestamp: msg.timestamp,
+          type: msg.type || 'text',
+          file: msg.file || null
+        })));
+        setUnreadMessages((prev) => ({ ...prev, [selectedRecipient] => 0 }));
+        setContactedUsers((prev) => (prev.includes(selectedRecipient) ? prev : [...prev, selectedRecipient]));
         await api.post(`/messages/mark-read/${currentUser}/${selectedRecipient}`);
       } catch (error) {
-        console.error('Failed to fetch chat history:', error);
+        console.error('Failed to load chat history:', error.message, error);
         setMessages([]);
+        setError('Failed to load messages');
+        setTimeout(() => setError(''), 5000);
       }
     } else {
       setMessages([]);
@@ -642,12 +650,13 @@ function App() {
   // Google login
   const handleGoogleLogin = () => {
     const googleAuthUrl = `${backendUrl}/auth/google`;
-    console.log('Initiating Google Auth:', googleAuthUrl);
     try {
       window.location.href = googleAuthUrl;
+      console.log('Initiating Google login:', googleAuthUrl);
     } catch (error) {
-      console.error('Google Auth redirect error:', error);
-      setError('Failed to initiate Google authentication');
+      console.error('Google Auth error:', error.message, error);
+      setError('Failed to initiate Google login');
+      setTimeout(() => setError(''), 5000);
     }
   };
 
@@ -655,7 +664,7 @@ function App() {
   const handleRegister = async (e) => {
     e.preventDefault();
     if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
-      setError('Username must be 3-20 characters (letters, numbers, underscores)');
+      setError('Invalid username format');
       return;
     }
     if (!/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(email)) {
@@ -663,7 +672,7 @@ function App() {
       return;
     }
     if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+      setError('Password too short');
       return;
     }
     try {
@@ -671,7 +680,9 @@ function App() {
       setView('login');
       setError('');
     } catch (error) {
+      console.error('Registration error:', error.message, error.response?.data);
       setError(error.response?.data?.message || 'Registration failed');
+      setTimeout(() => setError(''), 5000);
     }
   };
 
@@ -683,15 +694,17 @@ function App() {
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('username', response.data.username);
       api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
-      setIsAuthenticated(true);
       setUsername(response.data.username);
+      setIsAuthenticated(true);
       setView('chat');
       socket.emit('registerUser', response.data.username);
       await fetchUsers();
       await fetchUnreadMessages();
       setError('');
     } catch (error) {
+      console.error('Login error:', error.message, error.response?.data);
       setError(error.response?.data?.message || 'Login failed');
+      setTimeout(() => setError(''), 5000);
     }
   };
 
@@ -726,7 +739,7 @@ function App() {
         socket.emit('stopTyping', { recipient });
         await fetchUnreadMessages();
       } catch (error) {
-        console.error('Failed to send message:', error);
+        console.error('Send message error:', error.message, error);
         setError('Failed to send message');
         setTimeout(() => setError(''), 5000);
       }
@@ -753,8 +766,9 @@ function App() {
         setContactedUsernames((prev) => (prev.includes(recipient) ? prev : [...prev, recipient]));
         await fetchUnreadMessages();
       } catch (error) {
-        console.error('Failed to send file:', error);
+        console.error('Send file error:', error.message, error);
         setError('Failed to send file');
+        setTimeout(() => setError(''), 5000);
       } finally {
         fileInputRef.current.disabled = false;
         fileInputRef.current.value = '';
@@ -777,8 +791,9 @@ function App() {
         setProfilePic(response.data.filename);
         setUserDPs((prev) => ({ ...prev, [username]: response.data.filename }));
       } catch (error) {
-        console.error('Failed to update profile pic:', error);
+        console.error('Profile pic update error:', error.message, error);
         setError('Failed to update profile picture');
+        setTimeout(() => setError(''), 5000);
       } finally {
         profilePicInputRef.current.disabled = false;
         profilePicInputRef.current.value = '';
@@ -839,6 +854,7 @@ function App() {
     setUsername('');
     setMessages([]);
     setRecipient('');
+    setUsers([]);
     setView('login');
     setProfilePic(null);
     setUserDPs({});
@@ -855,7 +871,7 @@ function App() {
 
   // Fetch users on search
   useEffect(() => {
-    if (isAuthenticated && username) {
+    if (isAuthenticated && username && username.length > 0) {
       if (searchTerm.trim()) {
         debouncedFetchUsers(searchTerm);
       } else {
@@ -911,7 +927,7 @@ function App() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Email"
-                className="signup-input"
+                className="input-field"
                 required
               />
               <input
@@ -919,20 +935,19 @@ function App() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Password"
-                className="signup-input"
+                className="input-field"
                 required
                 autoComplete="current-password"
               />
-              <button type="submit" className="signup-button">
+              <button type="submit" className="submit-button">
                 Sign In
               </button>
-              <p className="already-have-account">
-                Don't have an account?{' '}
-                <a href="#" onClick={() => setView('register')}>
+              <p className="alternate-action">
+                Don't have an account?                <a href="#" onClick={() => setView('register')}>
                   Sign Up
                 </a>
               </p>
-              <div className="or">OR</div>
+              <div className="separator">or</div>
               <button type="button" className="google-btn" onClick={handleGoogleLogin}>
                 Sign In with Google
               </button>
@@ -942,9 +957,9 @@ function App() {
               <input
                 type="text"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
                 placeholder="Username"
-                className="signup-input"
+                onChange={(e) => setUsername(e.target.value)}
+                className="input-field"
                 required
               />
               <input
@@ -952,28 +967,27 @@ function App() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Email"
-                className="signup-input"
+                className="input-field"
                 required
               />
               <input
                 type="password"
+                placeholder="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Password"
-                className="signup-input"
+                className="input-field"
                 required
                 autoComplete="new-password"
               />
-              <button type="submit" className="signup-button">
+              <button type="submit" className="submit-button">
                 Sign Up
               </button>
-              <p className="have-account">
-                Already have an account?{' '}
-                <a href="#" onClick={() => setView('login')}>
+              <p className="alternate-action">
+                Already have an account?                <a href="#" onClick={() => setView('login')}>
                   Sign In
                 </a>
               </p>
-              <div className="or">OR</div>
+              <div className="separator">or</div>
               <button type="button" className="google-btn" onClick={handleGoogleLogin}>
                 Sign Up with Google
               </button>
@@ -1035,7 +1049,7 @@ function App() {
         isSearching={isSearching}
       />
       {view === 'chat' && (
-        <div className="main-chat">
+        <div className="chat-main">
           <ChatHeader
             recipient={recipient}
             userDPs={userDPs}
@@ -1045,14 +1059,14 @@ function App() {
           />
           <div className="message-box" ref={messageBoxRef}>
             {!recipient ? (
-              <p className="empty-convo">Convo<br />Connect with friends!</p>
+              <p className="empty-conversation">Convo<br />Connect with friends!</p>
             ) : messages.length === 0 ? (
-              <p className="empty-convo">No messages yet. Say hi!</p>
+              <p className="empty-conversation">No messages yet. Say hi!</p>
             ) : (
               messages.map((msg, index) => (
                 <Message
                   key={msg.messageId || `message-${index}`}
-                  msg={msg}
+                  message={msg}
                   username={username}
                   toggleReactionPicker={toggleReactionPicker}
                   reactionPicker={reactionPicker}
@@ -1081,9 +1095,9 @@ function App() {
         username={username}
         profilePic={profilePic}
         handleLogout={handleLogout}
-        updateProfilePic={updateProfilePic}
+        updateProfilePicture={updateProfilePic}
         profilePicInputRef={profilePicInputRef}
-        showProfilePicModal={showProfilePicModal}
+        showProfilePictureModal={showProfilePicModal}
         theme={theme}
         toggleTheme={toggleTheme}
         showReactions={showReactions}
