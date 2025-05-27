@@ -381,63 +381,64 @@ function App() {
   }, [username]);
 
   // Fetch users
-  const fetchUsers = useCallback(
-    async (query = '') => {
-      if (!username) {
-        setError('Username not set');
-        return;
-      }
-      try {
-        const response = await retry(() =>
-          api.get('/users/search', {
-            params: { query, currentUser: username.toLowerCase() },
-          })
+  // Fetch users
+const fetchUsers = useCallback(
+  async (query = '') => {
+    if (!username) {
+      setError('Username not set');
+      return;
+    }
+    console.log('Fetching users with username:', username);
+    try {
+      const response = await retry(() =>
+        api.get('/users/search', {
+          params: { query, currentUser: username.toLowerCase() },
+        })
+      );
+      let uniqueUsers = [];
+      if (response.data && Array.isArray(response.data)) {
+        uniqueUsers = [...new Set([...response.data])].filter(
+          (u) => u.toLowerCase() !== username.toLowerCase()
         );
-        let uniqueUsers = [];
-        if (response.data && Array.isArray(response.data)) {
-          uniqueUsers = [...new Set([...response.data])].filter(
+        if (query) {
+          uniqueUsers = [...new Set([...uniqueUsers, ...contactedUsernames])].filter(
             (u) => u.toLowerCase() !== username.toLowerCase()
           );
-          if (query) {
-            uniqueUsers = [...new Set([...uniqueUsers, ...contactedUsernames])].filter(
-              (u) => u.toLowerCase() !== username.toLowerCase()
-            );
-          } else {
-            uniqueUsers = [...contactedUsernames].filter(
-              (u) => u.toLowerCase() !== username.toLowerCase()
-            );
-          }
-          setUsers(uniqueUsers);
-          const dpPromises = uniqueUsers.map((user) =>
-            api
-              .get(`/user/profile-pic/${user}`)
-              .then((res) => ({ user, profilePic: res.data.profilePic }))
-              .catch((err) => {
-                console.error(`Profile pic error for ${user}:`, err.message);
-                return { user, profilePic: null };
-              })
-          );
-          const dps = await Promise.all(dpPromises);
-          setUserDPs(Object.fromEntries(dps.map(({ user, profilePic }) => [user, profilePic])));
-          if (uniqueUsers.length > 0) fetchUnreadMessages();
-        }
-      } catch (error) {
-        console.error('Fetch users error:', {
-          message: error.message,
-          response: error.response?.data,
-          status: error.response?.status,
-        });
-        setError('Failed to load contacts. Please try again.');
-        if (query) {
-          setUsers([...contactedUsernames].filter((u) => u.toLowerCase() !== username.toLowerCase()));
         } else {
-          setUsers([]);
+          uniqueUsers = [...contactedUsernames].filter(
+            (u) => u.toLowerCase() !== username.toLowerCase()
+          );
         }
+        setUsers(uniqueUsers);
+        const dpPromises = uniqueUsers.map((user) =>
+          api
+            .get(`/user/profile-pic/${user}`)
+            .then((res) => ({ user, profilePic: res.data.profilePic }))
+            .catch((err) => {
+              console.error(`Profile pic error for ${user}:`, err.message);
+              return { user, profilePic: null };
+            })
+        );
+        const dps = await Promise.all(dpPromises);
+        setUserDPs(Object.fromEntries(dps.map(({ user, profilePic }) => [user, profilePic])));
+        if (uniqueUsers.length > 0) fetchUnreadMessages();
       }
-    },
-    [username, fetchUnreadMessages, contactedUsernames]
-  );
-
+    } catch (error) {
+      console.error('Fetch users error:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+      });
+      setError('Failed to load contacts. Please try again.');
+      if (query) {
+        setUsers([...contactedUsernames].filter((u) => u.toLowerCase() !== username.toLowerCase()));
+      } else {
+        setUsers([]);
+      }
+    }
+  },
+  [username, fetchUnreadMessages, contactedUsernames]
+);
   // Socket and authentication logic
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -835,14 +836,15 @@ function App() {
                   className="signup-input"
                   required
                 />
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Password"
-                  className="signup-input"
-                  required
-                />
+<input
+  type="password"
+  value={password}
+  onChange={(e) => setPassword(e.target.value)}
+  placeholder="Password"
+  className="signup-input"
+  required
+  autocomplete="current-password"
+/>
                 <button type="submit" className="signup-button">
                   Sign In
                 </button>
@@ -875,14 +877,15 @@ function App() {
                   className="signup-input"
                   required
                 />
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Password"
-                  className="signup-input"
-                  required
-                />
+              <input
+  type="password"
+  value={password}
+  onChange={(e) => setPassword(e.target.value)}
+  placeholder="Password"
+  className="signup-input"
+  required
+  autocomplete="new-password"
+/>
                 <button type="submit" className="signup-button">
                   Sign Up
                 </button>
