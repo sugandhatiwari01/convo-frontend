@@ -46,6 +46,8 @@ const retry = async (fn, retries = 3, delay = 1000) => {
 
 // Sidebar Component
 const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRecipient, loadChatHistory, unreadMessages, userDPs, isSidebarOpen, toggleSidebar, onlineUsers, showContactPicModal, isSearching }) => {
+  const clearSearch = () => setSearchTerm('');
+
   return (
     <div className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
       <div className="sidebar-header">
@@ -64,6 +66,11 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
             className="search-input-text"
           />
           <IoSearchOutline className="search-icon" />
+          {searchTerm && (
+            <button className="clear-search" onClick={clearSearch}>
+              ×
+            </button>
+          )}
           {isSearching && <FaSpinner className="spinner" />}
         </div>
       </div>
@@ -102,7 +109,22 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
                   {user.charAt(0).toUpperCase()}
                 </div>
               )}
-              <span className="user-name">{user}</span>
+              <span className="user-name">
+                {searchTerm && user.toLowerCase().includes(searchTerm.toLowerCase()) ? (
+                  <>
+                    {user.slice(0, user.toLowerCase().indexOf(searchTerm.toLowerCase()))}
+                    <span className="highlight">
+                      {user.slice(
+                        user.toLowerCase().indexOf(searchTerm.toLowerCase()),
+                        user.toLowerCase().indexOf(searchTerm.toLowerCase()) + searchTerm.length
+                      )}
+                    </span>
+                    {user.slice(user.toLowerCase().indexOf(searchTerm.toLowerCase()) + searchTerm.length)}
+                  </>
+                ) : (
+                  user
+                )}
+              </span>
               {unreadMessages[user] > 0 && (
                 <span className="message-count">{unreadMessages[user]}</span>
               )}
@@ -116,7 +138,16 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
     </div>
   );
 };
-
+useEffect(() => {
+  if (!searchTerm) {
+    // Prioritize recently contacted users
+    const recentUsers = users.filter((user) => contactedUsernames.includes(user));
+    const otherUsers = users.filter((user) => !contactedUsernames.includes(user));
+    setUsers([...recentUsers, ...otherUsers]);
+  } else {
+    debouncedFetchUsers(searchTerm);
+  }
+}, [searchTerm, contactedUsernames, users, debouncedFetchUsers]);
 // ChatHeader Component
 const ChatHeader = ({ recipient, userDPs, setIsSettingsOpen, toggleSidebar, onlineUsers }) => {
   return (
@@ -484,9 +515,10 @@ function App() {
 // In App.js, inside the App component
 const fetchUsers = useCallback(async (query = '') => {
   if (!username || !isAuthenticated) return;
+  setIsSearching(true);
   try {
     const response = await api.get('/users/search', {
-      params: { query, currentUser: username },
+      params: { query: query.toLowerCase(), currentUser: username },
     });
     setUsers(response.data);
     const dpPromises = response.data.map((user) =>
@@ -501,6 +533,8 @@ const fetchUsers = useCallback(async (query = '') => {
     console.error('Fetch users error:', error);
     setError('Failed to load contacts');
     setTimeout(() => setError(''), 5000);
+  } finally {
+    setIsSearching(false);
   }
 }, [username, isAuthenticated]);
 
@@ -514,19 +548,23 @@ useEffect(() => {
   if (isAuthenticated) {
     socket.on('connect', () => console.log('Connected to server'));
     socket.on('receiveMessage', (msg) => {
-      // Only add message if it doesn't exist in the state
-      if (!messages.some((m) => m.messageId === msg.messageId)) {
-        setMessages((prev) => [...prev, msg]);
-        setContactedUsernames((prev) => (prev.includes(msg.username) ? prev : [...prev, msg.username]));
-        if (msg.username === recipient) {
-          setUnreadMessages((prev) => ({ ...prev, [msg.username]: 0 }));
-          api.post(`/messages/mark-read/${username}/${msg.username}`);
-        } else {
-          setUnreadMessages((prev) => ({
-            ...prev,
-            [msg.username]: (prev[msg.username] || 0) + 1,
-          }));
+      setMessages((prev) => {
+        if (!prev.some((m) => m.messageId === msg.messageId)) {
+          return [...prev, msg];
         }
+        return prev;
+      });
+      setContactedUsernames((prev) =>
+        prev.includes(msg.username) ? prev : [...prev, msg.username]
+      );
+      if (msg.username === recipient) {
+        setUnreadMessages((prev) => ({ ...prev, [msg.username]: 0 }));
+        api.post(`/messages/mark-read/${username}/${msg.username}`);
+      } else {
+        setUnreadMessages((prev) => ({
+          ...prev,
+          [msg.username]: (prev[msg.username] || 0) + 1,
+        }));
       }
     });
     socket.on('userTyping', (data) => {
@@ -546,7 +584,7 @@ useEffect(() => {
       socket.off('userStatus');
     };
   }
-}, [isAuthenticated, username, recipient, messages]);
+}, [isAuthenticated, username, recipient]);
 
   // Load chat history
   const loadChatHistory = async (currentUser, selectedRecipient) => {
@@ -640,9 +678,9 @@ const sendMessage = async () => {
       text: message,
       timestamp: new Date().toISOString(),
       type: 'text',
+      messageId: new mongoose.Types.ObjectId().toString(),
     };
     try {
-      // Send message to server for persistence
       const response = await api.post('/messages/sendText', {
         sender: username,
         recipient,
@@ -650,7 +688,12 @@ const sendMessage = async () => {
         timestamp: msg.timestamp,
       });
       const savedMessage = response.data;
-      // Emit the saved message via Socket.IO
+      // Only add the message to state if it doesn't already exist
+      setMessages((prev) =>
+        prev.some((m) => m.messageId === savedMessage.messageId)
+          ? prev
+          : [...prev, savedMessage]
+      );
       socket.emit('sendMessage', {
         recipient,
         message: savedMessage.text,
@@ -659,8 +702,9 @@ const sendMessage = async () => {
         timestamp: savedMessage.timestamp,
         username,
       });
-setMessages((prev) => [...prev, savedMessage]);
-      setContactedUsernames((prev) => (prev.includes(recipient) ? prev : [...prev, recipient]));
+      setContactedUsernames((prev) =>
+        prev.includes(recipient) ? prev : [...prev, recipient]
+      );
       setMessage('');
       socket.emit('stopTyping', { recipient });
       await fetchUnreadMessages();

@@ -898,7 +898,26 @@ body {
   cursor: pointer;
   min-height: 40px;
 }
+.highlight {
+  background-color: #ffeb3b;
+  font-weight: bold;
+}
 
+.clear-search {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  color: #666;
+}
+
+.clear-search:hover {
+  color: #000;
+}
 /* Theme toggle */
 .theme-toggle {
   margin-left: 10px;
