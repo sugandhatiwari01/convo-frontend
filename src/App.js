@@ -540,42 +540,43 @@ function App() {
   }, [users]);
 
   // Socket handling
-  useEffect(() => {
-    if (isAuthenticated) {
-      socket.on('connect', () => console.log('Connected to server'));
-      socket.on('receiveMessage', (msg) => {
-        if (msg.username !== username && !messages.some((m) => m.messageId === msg.messageId)) {
-          setContactedUsernames((prev) => (prev.includes(msg.username) ? prev : [...prev, msg.username]));
-          if (msg.username === recipient) {
-            setMessages((prev) => [...prev, msg]);
-            setUnreadMessages((prev) => ({ ...prev, [msg.username]: 0 }));
-            api.post(`/messages/mark-read/${username}/${msg.username}`);
-          } else {
-            setUnreadMessages((prev) => ({
-              ...prev,
-              [msg.username]: (prev[msg.username] || 0) + 1,
-            }));
-          }
+useEffect(() => {
+  if (isAuthenticated) {
+    socket.on('connect', () => console.log('Connected to server'));
+    socket.on('receiveMessage', (msg) => {
+      // Only add message if it doesn't exist in the state
+      if (!messages.some((m) => m.messageId === msg.messageId)) {
+        setMessages((prev) => [...prev, msg]);
+        setContactedUsernames((prev) => (prev.includes(msg.username) ? prev : [...prev, msg.username]));
+        if (msg.username === recipient) {
+          setUnreadMessages((prev) => ({ ...prev, [msg.username]: 0 }));
+          api.post(`/messages/mark-read/${username}/${msg.username}`);
+        } else {
+          setUnreadMessages((prev) => ({
+            ...prev,
+            [msg.username]: (prev[msg.username] || 0) + 1,
+          }));
         }
-      });
-      socket.on('userTyping', (data) => {
-        if (data.username === recipient) {
-          setTyping(data.username);
-          setTimeout(() => setTyping(''), 2000);
-        }
-      });
-      socket.on('userStatus', ({ user, status }) => {
-        setOnlineUsers((prev) =>
-          status === 'online' ? [...new Set([...prev, user])] : prev.filter((u) => u !== user)
-        );
-      });
-      return () => {
-        socket.off('receiveMessage');
-        socket.off('userTyping');
-        socket.off('userStatus');
-      };
-    }
-  }, [isAuthenticated, username, recipient, messages]);
+      }
+    });
+    socket.on('userTyping', (data) => {
+      if (data.username === recipient) {
+        setTyping(data.username);
+        setTimeout(() => setTyping(''), 2000);
+      }
+    });
+    socket.on('userStatus', ({ user, status }) => {
+      setOnlineUsers((prev) =>
+        status === 'online' ? [...new Set([...prev, user])] : prev.filter((u) => u !== user)
+      );
+    });
+    return () => {
+      socket.off('receiveMessage');
+      socket.off('userTyping');
+      socket.off('userStatus');
+    };
+  }
+}, [isAuthenticated, username, recipient, messages]);
 
   // Load chat history
   const loadChatHistory = async (currentUser, selectedRecipient) => {
@@ -661,24 +662,45 @@ function App() {
   };
 
   // Send text message
-  const sendMessage = async () => {
-    if (message.trim() && isAuthenticated && recipient) {
-      const msg = {
-        messageId: Date.now().toString(),
-        username,
+// Send text message
+const sendMessage = async () => {
+  if (message.trim() && isAuthenticated && recipient) {
+    const msg = {
+      username,
+      text: message,
+      timestamp: new Date().toISOString(),
+      type: 'text',
+    };
+    try {
+      // Send message to server for persistence
+      const response = await api.post('/messages/sendText', {
+        sender: username,
+        recipient,
         text: message,
-        timestamp: new Date(),
-        type: 'text',
-      };
-      socket.emit('sendMessage', { recipient, message: msg.text, type: 'text' });
-      setMessages((prev) => [...prev, msg]);
+        timestamp: msg.timestamp,
+      });
+      const savedMessage = response.data;
+      // Emit the saved message via Socket.IO
+      socket.emit('sendMessage', {
+        recipient,
+        message: savedMessage.text,
+        type: savedMessage.type,
+        messageId: savedMessage.messageId,
+        timestamp: savedMessage.timestamp,
+        username,
+      });
+setMessages((prev) => [...prev, savedMessage]);
       setContactedUsernames((prev) => (prev.includes(recipient) ? prev : [...prev, recipient]));
       setMessage('');
       socket.emit('stopTyping', { recipient });
       await fetchUnreadMessages();
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      setError('Failed to send message');
+      setTimeout(() => setError(''), 5000);
     }
-  };
-
+  }
+};
   // Send file
   const sendFile = async (event) => {
     const file = event.target.files[0];
