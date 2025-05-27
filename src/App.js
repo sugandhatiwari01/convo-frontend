@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import io from 'socket.io-client';
 import axios from 'axios';
 import './App.css';
-import { IoSearchOutline, IoSettingsOutline, IoSendSharp, IoAttachOutline, IoChevronBack } from 'react-icons/io5';
+import { IoSearchOutline, IoSettingsOutline, IoSendSharp, IoAttachOutline, IoChevronBack, IoMenu } from 'react-icons/io5';
 import { BsChatLeft, BsInfoCircle } from 'react-icons/bs';
 import { FiUser } from 'react-icons/fi';
+import { FaSpinner } from 'react-icons/fa';
 
 // API and backend URLs
 const apiBase = process.env.REACT_APP_API_BASE || 'https://convodb1.onrender.com/api';
@@ -44,24 +45,30 @@ const retry = async (fn, retries = 3, delay = 1000) => {
 };
 
 // Sidebar Component
-const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRecipient, loadChatHistory, unreadMessages, userDPs, isSidebarOpen, toggleSidebar, onlineUsers, showContactPicModal }) => {
+const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRecipient, loadChatHistory, unreadMessages, userDPs, isSidebarOpen, toggleSidebar, onlineUsers, showContactPicModal, isSearching }) => {
   return (
     <div className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
       <div className="sidebar-header">
-        <h1>Convo</h1>
+        <div className="header-top">
+          <h1>Convo</h1>
+          <button className="sidebar-toggle" onClick={() => toggleSidebar(false)}>
+            <IoChevronBack size={24} />
+          </button>
+        </div>
         <div className="search-input-container">
           <input
             type="text"
-            placeholder="Search..."
-            className="search-input"
+            placeholder="Search users..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            className="search-input-text"
           />
           <IoSearchOutline className="search-icon" />
+          {isSearching && <FaSpinner className="spinner" />}
         </div>
       </div>
-      <div className="recents">
-        <h2>Recents</h2>
+      <div className="contacts">
+        <h2>Contacts</h2>
         {users.length > 0 ? (
           users.map((user) => (
             <div
@@ -71,6 +78,7 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
                 setRecipient(user);
                 loadChatHistory(username, user);
                 toggleSidebar(false);
+                setSearchTerm('');
               }}
             >
               {userDPs[user] ? (
@@ -82,7 +90,6 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
                     e.stopPropagation();
                     showContactPicModal(user, `${backendUrl}/Uploads/${userDPs[user]}`);
                   }}
-                  style={{ cursor: 'pointer' }}
                 />
               ) : (
                 <div
@@ -91,7 +98,6 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
                     e.stopPropagation();
                     showContactPicModal(user, null);
                   }}
-                  style={{ cursor: 'pointer' }}
                 >
                   {user.charAt(0).toUpperCase()}
                 </div>
@@ -104,7 +110,7 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
             </div>
           ))
         ) : (
-          <p>No recent contacts</p>
+          <p>{searchTerm ? 'No matching contacts found' : 'No contacts available'}</p>
         )}
       </div>
     </div>
@@ -116,7 +122,7 @@ const ChatHeader = ({ recipient, userDPs, setIsSettingsOpen, toggleSidebar, onli
   return (
     <div className="chat-header">
       <div className="user-info">
-        <IoChevronBack className="back-button" onClick={() => toggleSidebar(true)} />
+        <IoMenu className="menu-button" onClick={() => toggleSidebar(true)} />
         {recipient && (
           <>
             {userDPs[recipient] ? (
@@ -138,7 +144,7 @@ const ChatHeader = ({ recipient, userDPs, setIsSettingsOpen, toggleSidebar, onli
         )}
       </div>
       <button onClick={() => setIsSettingsOpen(true)} className="settings-button">
-        <IoSettingsOutline />
+        <IoSettingsOutline size={20} />
       </button>
     </div>
   );
@@ -183,8 +189,8 @@ const InfoPage = ({ setView }) => {
 // Profile Picture Modal Component
 const ProfilePicModal = ({ profilePic, username, onClose }) => {
   return (
-    <div className="modal-overlay">
-      <div className="modal-content">
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose}>×</button>
         <img
           src={profilePic || `https://placehold.co/300?text=${username.charAt(0)}`}
@@ -236,7 +242,7 @@ const SettingsSidebar = ({ isSettingsOpen, setIsSettingsOpen, username, profileP
           <div className="option appearance-option">
             Appearance
             <div className="theme-toggle" onClick={toggleTheme}>
-              <div className={`theme-toggle ${theme === 'dark' ? 'checked' : ''}`}>
+              <div className={`theme-toggle-slider ${theme === 'dark' ? 'checked' : ''}`}>
                 <div className="theme-toggle-icon">
                   <div className="theme-icon-part sun"></div>
                   {[...Array(8)].map((_, i) => (
@@ -267,7 +273,7 @@ const MessageInput = ({ message, handleTyping, sendMessage, fileInputRef, sendFi
         onChange={handleTyping}
         onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
         className="message-input"
-        placeholder="Enter Text..."
+        placeholder="Type a message..."
       />
       <input
         type="file"
@@ -278,7 +284,7 @@ const MessageInput = ({ message, handleTyping, sendMessage, fileInputRef, sendFi
         ref={fileInputRef}
       />
       <label htmlFor="file-upload" className="file-label">
-        <IoAttachOutline size={20} />
+        <IoAttachOutline size={22} />
       </label>
       <button onClick={sendMessage} className="send-button">
         <IoSendSharp size={18} />
@@ -286,6 +292,61 @@ const MessageInput = ({ message, handleTyping, sendMessage, fileInputRef, sendFi
     </div>
   );
 };
+
+// Memoized Message Component
+const Message = React.memo(({ msg, username, toggleReactionPicker, reactionPicker, handleReaction, showReactions, reactions }) => {
+  return (
+    <div className={msg.username === username ? 'sent-message-message' : 'received-message-message'}>
+      {msg.type === 'text' ? (
+        <div className={msg.username === username ? 'sent-message-text' : 'received-message-text'}>
+          <p onClick={() => toggleReactionPicker(msg.messageId)}>
+            {msg.text}
+            <small>{new Date(msg.timestamp).toLocaleTimeString()}</small>
+          </p>
+          {reactionPicker.visible && reactionPicker.messageId === msg.messageId && (
+            <div className="reaction-picker">
+              {['👍', '🔥', '❤️', '😄', '🎉'].map((emoji) => (
+                <span
+                  key={emoji}
+                  className="reaction-emoji"
+                  onClick={() => handleReaction(msg.messageId, emoji)}
+                >
+                  {emoji}
+                </span>
+              ))}
+            </div>
+          )}
+          {showReactions && reactions[msg.messageId] && (
+            <div className="reactions">
+              {Object.entries(reactions[msg.messageId]).map(([user, emojis]) =>
+                emojis.map((emoji, i) => (
+                  <span key={`${user}-${emoji}-${i}`} className="reaction">
+                    {emoji}
+                  </span>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className={msg.username === username ? 'sent-message-text' : 'received-message-text'}>
+          {msg.file && (
+            <a
+              href={`${backendUrl}/Uploads/${msg.file}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="file-text"
+              download={msg.type === 'document'}
+            >
+              {msg.type === 'image' ? 'View Image' : 'Download Document'}
+            </a>
+          )}
+          <small>{new Date(msg.timestamp).toLocaleTimeString()}</small>
+        </div>
+      )}
+    </div>
+  );
+});
 
 // Main App Component
 function App() {
@@ -298,7 +359,7 @@ function App() {
   const [view, setView] = useState('login');
   const [recipient, setRecipient] = useState('');
   const [users, setUsers] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(localStorage.getItem('searchTerm') || '');
   const [error, setError] = useState('');
   const [typing, setTyping] = useState('');
   const [unreadMessages, setUnreadMessages] = useState({});
@@ -314,6 +375,7 @@ function App() {
   const [reactions, setReactions] = useState(JSON.parse(localStorage.getItem('reactions')) || {});
   const [showReactions, setShowReactions] = useState(JSON.parse(localStorage.getItem('showReactions')) || true);
   const [reactionPicker, setReactionPicker] = useState({ messageId: null, visible: false });
+  const [isSearching, setIsSearching] = useState(false);
   const messageBoxRef = useRef(null);
   const fileInputRef = useRef(null);
   const profilePicInputRef = useRef(null);
@@ -330,6 +392,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem('showReactions', JSON.stringify(showReactions));
   }, [showReactions]);
+
+  useEffect(() => {
+    localStorage.setItem('searchTerm', searchTerm);
+  }, [searchTerm]);
 
   // Apply theme
   useEffect(() => {
@@ -351,6 +417,7 @@ function App() {
     if (errorParam) {
       setError(`Authentication failed: ${errorParam}`);
       window.history.replaceState({}, document.title, '/');
+      setTimeout(() => setError(''), 5000);
       return;
     }
 
@@ -413,10 +480,11 @@ function App() {
     }
   }, [username]);
 
-  // Fetch users
+  // Fetch users with optimized search
   const fetchUsers = useCallback(
     async (query = '') => {
       if (!username || !isAuthenticated) return;
+      setIsSearching(true);
       try {
         const token = localStorage.getItem('token');
         if (!token) throw new Error('No authentication token');
@@ -433,6 +501,14 @@ function App() {
           uniqueUsers = [...new Set([...uniqueUsers, ...contactedUsernames])].filter(
             (u) => u.toLowerCase() !== username.toLowerCase()
           );
+        } else {
+          uniqueUsers = uniqueUsers.filter((u) =>
+            u.toLowerCase().startsWith(query.toLowerCase())
+          );
+          const localMatches = contactedUsernames.filter(
+            (u) => u.toLowerCase().startsWith(query.toLowerCase()) && u.toLowerCase() !== username.toLowerCase()
+          );
+          uniqueUsers = [...new Set([...uniqueUsers, ...localMatches])];
         }
         setUsers(uniqueUsers);
         const dpPromises = uniqueUsers.map((user) =>
@@ -447,11 +523,21 @@ function App() {
       } catch (error) {
         console.error('Fetch users error:', error);
         setError('Failed to load contacts');
-        setUsers([...contactedUsernames].filter((u) => u.toLowerCase() !== username.toLowerCase()));
+        const filteredContacts = contactedUsernames.filter(
+          (u) => u.toLowerCase().startsWith(query.toLowerCase()) && u.toLowerCase() !== username.toLowerCase()
+        );
+        setUsers(filteredContacts);
+      } finally {
+        setIsSearching(false);
       }
     },
     [username, isAuthenticated, contactedUsernames, fetchUnreadMessages]
   );
+
+  // Memoized user list
+  const filteredUsers = useMemo(() => {
+    return users.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+  }, [users]);
 
   // Socket handling
   useEffect(() => {
@@ -681,6 +767,17 @@ function App() {
     }));
   };
 
+  // Close reaction picker on outside click
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (reactionPicker.visible && !event.target.closest('.reaction-picker') && !event.target.closest('.sent-message-text p, .received-message-text p')) {
+        setReactionPicker({ messageId: null, visible: false });
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [reactionPicker]);
+
   // Logout
   const handleLogout = () => {
     localStorage.clear();
@@ -695,11 +792,12 @@ function App() {
     setContactedUsernames([]);
     setReactions({});
     setShowReactions(true);
+    setSearchTerm('');
     socket.disconnect();
   };
 
   // Debounced fetch users
-  const debouncedFetchUsers = useCallback(debounce(fetchUsers, 300), [fetchUsers]);
+  const debouncedFetchUsers = useCallback(debounce(fetchUsers, 400), [fetchUsers]);
 
   // Scroll to bottom
   useEffect(() => {
@@ -826,11 +924,6 @@ function App() {
             </form>
           )}
         </div>
-        <div className="branding">
-          <div className="chat-icon"></div>
-          <h1>CONVO</h1>
-          <p>where connection comes to life</p>
-        </div>
       </div>
     );
   }
@@ -855,23 +948,23 @@ function App() {
       )}
       <div className="sidebar-icons">
         <div className="icon" onClick={() => { setView('chat'); setRecipient(''); setMessages([]); }}>
-          <BsChatLeft />
+          <BsChatLeft size={20} />
         </div>
         <div className="icon" onClick={showProfile}>
-          <FiUser />
+          <FiUser size={20} />
         </div>
         <div className="icon" onClick={showInfo}>
-          <BsInfoCircle />
+          <BsInfoCircle size={20} />
         </div>
         <img
           src={profilePic ? `${backendUrl}/Uploads/${profilePic}` : `https://placehold.co/40?text=${username.charAt(0)}`}
           alt={username}
-          className="icon"
+          className="icon avatar"
         />
       </div>
       <Sidebar
         username={username}
-        users={users}
+        users={filteredUsers}
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
         recipient={recipient}
@@ -883,6 +976,7 @@ function App() {
         toggleSidebar={setIsSidebarOpen}
         onlineUsers={onlineUsers}
         showContactPicModal={showContactPicModal}
+        isSearching={isSearching}
       />
       {view === 'chat' && (
         <div className="main-chat">
@@ -895,63 +989,21 @@ function App() {
           />
           <div className="message-box" ref={messageBoxRef}>
             {!recipient ? (
-              <p className="empty-convo">Convo<br />where connection comes to life</p>
+              <p className="empty-convo">Convo<br />Connect with friends!</p>
             ) : messages.length === 0 ? (
-              <p className="empty-convo">No messages yet. Start the conversation!</p>
+              <p className="empty-convo">No messages yet. Say hi!</p>
             ) : (
               messages.map((msg, index) => (
-                <div
+                <Message
                   key={msg.messageId || `message-${index}`}
-                  className={msg.username === username ? 'sent-message-container' : 'received-message-container'}
-                >
-                  {msg.type === 'text' ? (
-                    <div className={msg.username === username ? 'sent-message' : 'received-message'}>
-                      <p onClick={() => toggleReactionPicker(msg.messageId)} style={{ cursor: 'pointer' }}>
-                        {msg.text}
-                        <small>{new Date(msg.timestamp).toLocaleTimeString()}</small>
-                      </p>
-                      {reactionPicker.visible && reactionPicker.messageId === msg.messageId && (
-                        <div className="reaction-picker">
-                          {['👍', '❤️', '😂', '💪', '🔥'].map((emoji) => (
-                            <span
-                              key={emoji}
-                              className="reaction-emoji"
-                              onClick={() => handleReaction(msg.messageId, emoji)}
-                            >
-                              {emoji}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      {showReactions && reactions[msg.messageId] && (
-                        <div className="reactions">
-                          {Object.entries(reactions[msg.messageId]).map(([user, emojis]) =>
-                            emojis.map((emoji, i) => (
-                              <span key={`${user}-${emoji}-${i}`} className="reaction">
-                                {emoji}
-                              </span>
-                            ))
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className={msg.username === username ? 'sent-message' : 'received-message'}>
-                      {msg.file && (
-                        <a
-                          href={`${backendUrl}/Uploads/${msg.file}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="file-link"
-                          download={msg.type === 'document'}
-                        >
-                          {msg.type === 'image' ? 'View Image' : 'View Document'}
-                        </a>
-                      )}
-                      <small>{new Date(msg.timestamp).toLocaleTimeString()}</small>
-                    </div>
-                  )}
-                </div>
+                  msg={msg}
+                  username={username}
+                  toggleReactionPicker={toggleReactionPicker}
+                  reactionPicker={reactionPicker}
+                  handleReaction={handleReaction}
+                  showReactions={showReactions}
+                  reactions={reactions}
+                />
               ))
             )}
             {typing && recipient && <p className="typing-indicator">{typing} is typing...</p>}
@@ -977,7 +1029,7 @@ function App() {
         profilePicInputRef={profilePicInputRef}
         showProfilePicModal={showProfilePicModal}
         theme={theme}
-        toggleTheme={toggleTheme}
+        toggleTheme={toggleTheme} // Fixed prop name
         showReactions={showReactions}
         setShowReactions={setShowReactions}
       />
