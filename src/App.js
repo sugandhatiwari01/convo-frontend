@@ -1,17 +1,16 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import io from 'socket.io-client';
 import axios from 'axios';
 import './App.css';
-import { IoSearchOutline, IoSettingsOutline, IoSendSharp, IoAttachOutline, IoChevronBack, IoMenu } from 'react-icons/io5';
+import { IoSearchOutline, IoSettingsOutline, IoSendSharp, IoAttachOutline, IoChevronBack } from 'react-icons/io5';
 import { BsChatLeft, BsInfoCircle } from 'react-icons/bs';
 import { FiUser } from 'react-icons/fi';
-import { FaSpinner } from 'react-icons/fa';
 
 // API and backend URLs
 const apiBase = process.env.REACT_APP_API_BASE || 'https://convodb1.onrender.com/api';
 const backendUrl = process.env.REACT_APP_BACKEND_URL || 'https://convodb1.onrender.com';
 
-// Axios instance
+// Axios instance with default configuration
 const api = axios.create({
   baseURL: apiBase,
   withCredentials: true,
@@ -45,30 +44,24 @@ const retry = async (fn, retries = 3, delay = 1000) => {
 };
 
 // Sidebar Component
-const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRecipient, loadChatHistory, unreadMessages, userDPs, isSidebarOpen, toggleSidebar, onlineUsers, showContactPicModal, isSearching }) => {
+const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRecipient, loadChatHistory, unreadMessages, userDPs, profilePic, showProfile, showInfo, setView, isSidebarOpen, toggleSidebar, onlineUsers, showContactPicModal }) => {
   return (
     <div className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
       <div className="sidebar-header">
-        <div className="header-top">
-          <h1>Convo</h1>
-          <button className="sidebar-toggle" onClick={() => toggleSidebar(false)}>
-            <IoChevronBack size={24} />
-          </button>
-        </div>
+        <h1>Convo</h1>
         <div className="search-input-container">
           <input
             type="text"
-            placeholder="Search users (e.g., 's' or 'su')..."
+            placeholder="Search..."
+            className="search-input"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="search-input-text"
           />
           <IoSearchOutline className="search-icon" />
-          {isSearching && <FaSpinner className="spinner" />}
         </div>
       </div>
-      <div className="contacts">
-        <h2>Contacts</h2>
+      <div className="recents">
+        <h2>Recents</h2>
         {users.length > 0 ? (
           users.map((user) => (
             <div
@@ -78,7 +71,7 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
                 setRecipient(user);
                 loadChatHistory(username, user);
                 toggleSidebar(false);
-                setSearchTerm('');
+                setView('chat');
               }}
             >
               {userDPs[user] ? (
@@ -90,6 +83,7 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
                     e.stopPropagation();
                     showContactPicModal(user, `${backendUrl}/Uploads/${userDPs[user]}`);
                   }}
+                  style={{ cursor: 'pointer' }}
                 />
               ) : (
                 <div
@@ -98,6 +92,7 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
                     e.stopPropagation();
                     showContactPicModal(user, null);
                   }}
+                  style={{ cursor: 'pointer' }}
                 >
                   {user.charAt(0).toUpperCase()}
                 </div>
@@ -110,7 +105,7 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
             </div>
           ))
         ) : (
-          <p>{searchTerm ? `No users found starting with "${searchTerm}"` : 'No contacts available'}</p>
+          <p>No recent contacts</p>
         )}
       </div>
     </div>
@@ -118,11 +113,11 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
 };
 
 // ChatHeader Component
-const ChatHeader = ({ recipient, userDPs, setIsSettingsOpen, toggleSidebar, onlineUsers }) => {
+const ChatHeader = ({ recipient, username, profilePic, userDPs, setIsSettingsOpen, toggleSidebar, onlineUsers }) => {
   return (
     <div className="chat-header">
       <div className="user-info">
-        <IoMenu className="menu-button" onClick={() => toggleSidebar(true)} />
+        <IoChevronBack className="back-button" onClick={() => toggleSidebar(true)} />
         {recipient && (
           <>
             {userDPs[recipient] ? (
@@ -144,7 +139,7 @@ const ChatHeader = ({ recipient, userDPs, setIsSettingsOpen, toggleSidebar, onli
         )}
       </div>
       <button onClick={() => setIsSettingsOpen(true)} className="settings-button">
-        <IoSettingsOutline size={20} />
+        <IoSettingsOutline />
       </button>
     </div>
   );
@@ -157,7 +152,7 @@ const UserProfile = ({ username, profilePic, setView }) => {
       <IoChevronBack className="close-button" onClick={() => setView('chat')} />
       <div className="profile-info">
         <img
-          src={profilePic ? `${backendUrl}/Uploads/${profilePic}` : `https://placehold.co/120?text=${username.charAt(0)}`}
+          src={profilePic ? `${backendUrl}/Uploads/${profilePic}` : `https://via.placeholder.com/120?text=${username.charAt(0)}`}
           alt={username}
           className="profile-pic-large"
         />
@@ -189,11 +184,11 @@ const InfoPage = ({ setView }) => {
 // Profile Picture Modal Component
 const ProfilePicModal = ({ profilePic, username, onClose }) => {
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay">
+      <div className="modal-content">
         <button className="modal-close" onClick={onClose}>×</button>
         <img
-          src={profilePic || `https://placehold.co/300?text=${username.charAt(0)}`}
+          src={profilePic || `https://via.placeholder.com/300?text=${username.charAt(0)}`}
           alt={username}
           className="modal-profile-pic"
         />
@@ -212,7 +207,7 @@ const SettingsSidebar = ({ isSettingsOpen, setIsSettingsOpen, username, profileP
       </div>
       <div className="profile-section">
         <img
-          src={profilePic ? `${backendUrl}/Uploads/${profilePic}` : `https://placehold.co/120?text=${username.charAt(0)}`}
+          src={profilePic ? `${backendUrl}/Uploads/${profilePic}` : `https://via.placeholder.com/120?text=${username.charAt(0)}`}
           alt={username}
           className="profile-pic-large"
         />
@@ -242,7 +237,7 @@ const SettingsSidebar = ({ isSettingsOpen, setIsSettingsOpen, username, profileP
           <div className="option appearance-option">
             Appearance
             <div className="theme-toggle" onClick={toggleTheme}>
-              <div className={`theme-toggle-slider ${theme === 'dark' ? 'checked' : ''}`}>
+              <div className={`theme-toggle ${theme === 'dark' ? 'checked' : ''}`}>
                 <div className="theme-toggle-icon">
                   <div className="theme-icon-part sun"></div>
                   {[...Array(8)].map((_, i) => (
@@ -273,7 +268,7 @@ const MessageInput = ({ message, handleTyping, sendMessage, fileInputRef, sendFi
         onChange={handleTyping}
         onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
         className="message-input"
-        placeholder="Type a message..."
+        placeholder="Enter Text..."
       />
       <input
         type="file"
@@ -284,7 +279,7 @@ const MessageInput = ({ message, handleTyping, sendMessage, fileInputRef, sendFi
         ref={fileInputRef}
       />
       <label htmlFor="file-upload" className="file-label">
-        <IoAttachOutline size={22} />
+        <IoAttachOutline size={20} />
       </label>
       <button onClick={sendMessage} className="send-button">
         <IoSendSharp size={18} />
@@ -293,63 +288,9 @@ const MessageInput = ({ message, handleTyping, sendMessage, fileInputRef, sendFi
   );
 };
 
-// Memoized Message Component
-const Message = React.memo(({ msg, username, toggleReactionPicker, reactionPicker, handleReaction, showReactions, reactions }) => {
-  return (
-    <div className={msg.username === username ? 'sent-message-message' : 'received-message-message'}>
-      {msg.type === 'text' ? (
-        <div className={msg.username === username ? 'sent-message-text' : 'received-message-text'}>
-          <p onClick={() => toggleReactionPicker(msg.messageId)}>
-            {msg.text}
-            <small>{new Date(msg.timestamp).toLocaleTimeString()}</small>
-          </p>
-          {reactionPicker.visible && reactionPicker.messageId === msg.messageId && (
-            <div className="reaction-picker">
-              {['👍', '🔥', '❤️', '😄', '🎉'].map((emoji) => (
-                <span
-                  key={emoji}
-                  className="reaction-emoji"
-                  onClick={() => handleReaction(msg.messageId, emoji)}
-                >
-                  {emoji}
-                </span>
-              ))}
-            </div>
-          )}
-          {showReactions && reactions[msg.messageId] && (
-            <div className="reactions">
-              {Object.entries(reactions[msg.messageId]).map(([user, emojis]) =>
-                emojis.map((emoji, i) => (
-                  <span key={`${user}-${emoji}-${i}`} className="reaction">
-                    {emoji}
-                  </span>
-                ))
-              )}
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className={msg.username === username ? 'sent-message-text' : 'received-message-text'}>
-          {msg.file && (
-            <a
-              href={`${backendUrl}/Uploads/${msg.file}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="file-text"
-              download={msg.type === 'document'}
-            >
-              {msg.type === 'image' ? 'View Image' : 'Download Document'}
-            </a>
-          )}
-          <small>{new Date(msg.timestamp).toLocaleTimeString()}</small>
-        </div>
-      )}
-    </div>
-  );
-});
-
 // Main App Component
 function App() {
+  const [isSignupActive, setIsSignupActive] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState([]);
@@ -359,7 +300,7 @@ function App() {
   const [view, setView] = useState('login');
   const [recipient, setRecipient] = useState('');
   const [users, setUsers] = useState([]);
-  const [searchTerm, setSearchTerm] = useState(localStorage.getItem('searchTerm') || '');
+  const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState('');
   const [typing, setTyping] = useState('');
   const [unreadMessages, setUnreadMessages] = useState({});
@@ -375,12 +316,11 @@ function App() {
   const [reactions, setReactions] = useState(JSON.parse(localStorage.getItem('reactions')) || {});
   const [showReactions, setShowReactions] = useState(JSON.parse(localStorage.getItem('showReactions')) || true);
   const [reactionPicker, setReactionPicker] = useState({ messageId: null, visible: false });
-  const [isSearching, setIsSearching] = useState(false);
   const messageBoxRef = useRef(null);
   const fileInputRef = useRef(null);
   const profilePicInputRef = useRef(null);
 
-  // Persist state in localStorage
+  // Persist contactedUsernames and reactions in localStorage
   useEffect(() => {
     localStorage.setItem('contactedUsernames', JSON.stringify(contactedUsernames));
   }, [contactedUsernames]);
@@ -393,63 +333,19 @@ function App() {
     localStorage.setItem('showReactions', JSON.stringify(showReactions));
   }, [showReactions]);
 
-  useEffect(() => {
-    localStorage.setItem('searchTerm', searchTerm);
-  }, [searchTerm]);
-
-  // Apply theme
+  // Apply theme to body and update SVG
   useEffect(() => {
     document.body.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
+
+    const chatIcon = document.querySelector('.branding .chat-icon');
+    if (chatIcon) {
+      const strokeColor = theme === 'light' ? '#945D5D' : '#D4A373';
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${strokeColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>`;
+      chatIcon.style.background = `url('data:image/svg+xml;utf8,${encodeURIComponent(svg)}') no-repeat center`;
+      chatIcon.style.backgroundSize = 'contain';
+    }
   }, [theme]);
-
-  // Initialize authentication
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    const storedUsername = localStorage.getItem('username');
-    const urlParams = new URLSearchParams(window.location.search);
-    const tokenParam = urlParams.get('token');
-    const usernameParam = urlParams.get('username');
-    const errorParam = urlParams.get('error');
-
-    console.log('Auth check:', { token, storedUsername, tokenParam, usernameParam, errorParam });
-
-    if (errorParam) {
-      setError(`Authentication failed: ${errorParam}`);
-      window.history.replaceState({}, document.title, '/');
-      setTimeout(() => setError(''), 5000);
-      return;
-    }
-
-    if (tokenParam && usernameParam) {
-      localStorage.setItem('token', tokenParam);
-      localStorage.setItem('username', decodeURIComponent(usernameParam));
-      api.defaults.headers.common['Authorization'] = `Bearer ${tokenParam}`;
-      setIsAuthenticated(true);
-      setUsername(decodeURIComponent(usernameParam));
-      socket.emit('registerUser', decodeURIComponent(usernameParam));
-      fetchUsers();
-      fetchUnreadMessages();
-      api
-        .get(`/user/profile-pic/${decodeURIComponent(usernameParam)}`)
-        .then((response) => setProfilePic(response.data.profilePic))
-        .catch((err) => console.error('Failed to fetch profile pic:', err));
-      setView('chat');
-      window.history.replaceState({}, document.title, '/');
-    } else if (token && storedUsername) {
-      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      setIsAuthenticated(true);
-      setUsername(storedUsername);
-      socket.emit('registerUser', storedUsername);
-      fetchUsers();
-      fetchUnreadMessages();
-      api
-        .get(`/user/profile-pic/${storedUsername}`)
-        .then((response) => setProfilePic(response.data.profilePic))
-        .catch((err) => console.error('Failed to fetch profile pic:', err));
-      setView('chat');
-    }
-  }, []);
 
   // Initialize sidebar visibility
   useEffect(() => {
@@ -475,78 +371,166 @@ function App() {
         );
         setUnreadMessages(response.data);
       } catch (error) {
-        console.error('Unread messages error:', error);
+        console.error('Unread messages error:', {
+          message: error.message,
+          response: error.response?.data,
+          status: error.response?.status,
+        });
       }
     }
   }, [username]);
 
-  // Fetch users with optimized search
-// In App.js, inside the App component
-const fetchUsers = useCallback(async (query = '') => {
-  if (!username || !isAuthenticated) return;
-  try {
-    const response = await api.get('/users/search', {
-      params: { query, currentUser: username },
-    });
-    setUsers(response.data);
-    const dpPromises = response.data.map((user) =>
-      api
-        .get(`/user/profile-pic/${user}`)
-        .then((res) => ({ user, profilePic: res.data.profilePic }))
-        .catch(() => ({ user, profilePic: null }))
-    );
-    const dps = await Promise.all(dpPromises);
-    setUserDPs(Object.fromEntries(dps.map(({ user, profilePic }) => [user, profilePic])));
-  } catch (error) {
-    console.error('Fetch users error:', error);
-    setError('Failed to load contacts');
-    setTimeout(() => setError(''), 5000);
-  }
-}, [username, isAuthenticated]);
-
-  // Memoized user list
-  const filteredUsers = useMemo(() => {
-    return users.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
-  }, [users]);
-
-  // Socket handling
-useEffect(() => {
-  if (isAuthenticated) {
-    socket.on('connect', () => console.log('Connected to server'));
-    socket.on('receiveMessage', (msg) => {
-      // Only add message if it doesn't exist in the state
-      if (!messages.some((m) => m.messageId === msg.messageId)) {
-        setMessages((prev) => [...prev, msg]);
-        setContactedUsernames((prev) => (prev.includes(msg.username) ? prev : [...prev, msg.username]));
-        if (msg.username === recipient) {
-          setUnreadMessages((prev) => ({ ...prev, [msg.username]: 0 }));
-          api.post(`/messages/mark-read/${username}/${msg.username}`);
+  // Fetch users
+  const fetchUsers = useCallback(
+    async (query = '') => {
+      if (!username) {
+        setError('Username not set');
+        return;
+      }
+      try {
+        const response = await retry(() =>
+          api.get('/users/search', {
+            params: { query, currentUser: username.toLowerCase() },
+          })
+        );
+        let uniqueUsers = [];
+        if (response.data && Array.isArray(response.data)) {
+          uniqueUsers = [...new Set([...response.data])].filter(
+            (u) => u.toLowerCase() !== username.toLowerCase()
+          );
+          if (query) {
+            uniqueUsers = [...new Set([...uniqueUsers, ...contactedUsernames])].filter(
+              (u) => u.toLowerCase() !== username.toLowerCase()
+            );
+          } else {
+            uniqueUsers = [...contactedUsernames].filter(
+              (u) => u.toLowerCase() !== username.toLowerCase()
+            );
+          }
+          setUsers(uniqueUsers);
+          const dpPromises = uniqueUsers.map((user) =>
+            api
+              .get(`/user/profile-pic/${user}`)
+              .then((res) => ({ user, profilePic: res.data.profilePic }))
+              .catch((err) => {
+                console.error(`Profile pic error for ${user}:`, err.message);
+                return { user, profilePic: null };
+              })
+          );
+          const dps = await Promise.all(dpPromises);
+          setUserDPs(Object.fromEntries(dps.map(({ user, profilePic }) => [user, profilePic])));
+          if (uniqueUsers.length > 0) fetchUnreadMessages();
+        }
+      } catch (error) {
+        console.error('Fetch users error:', {
+          message: error.message,
+          response: error.response?.data,
+          status: error.response?.status,
+        });
+        setError('Failed to load contacts. Please try again.');
+        if (query) {
+          setUsers([...contactedUsernames].filter((u) => u.toLowerCase() !== username.toLowerCase()));
         } else {
-          setUnreadMessages((prev) => ({
-            ...prev,
-            [msg.username]: (prev[msg.username] || 0) + 1,
-          }));
+          setUsers([]);
         }
       }
-    });
-    socket.on('userTyping', (data) => {
-      if (data.username === recipient) {
-        setTyping(data.username);
-        setTimeout(() => setTyping(''), 2000);
-      }
-    });
-    socket.on('userStatus', ({ user, status }) => {
-      setOnlineUsers((prev) =>
-        status === 'online' ? [...new Set([...prev, user])] : prev.filter((u) => u !== user)
-      );
-    });
-    return () => {
-      socket.off('receiveMessage');
-      socket.off('userTyping');
-      socket.off('userStatus');
-    };
-  }
-}, [isAuthenticated, username, recipient, messages]);
+    },
+    [username, fetchUnreadMessages, contactedUsernames]
+  );
+
+  // Socket and authentication logic
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const storedUsername = localStorage.getItem('username');
+    if (token && storedUsername) {
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      setIsAuthenticated(true);
+      setUsername(storedUsername);
+      socket.emit('registerUser', storedUsername);
+      fetchUsers();
+      fetchUnreadMessages();
+      api
+        .get(`/user/profile-pic/${storedUsername}`)
+        .then((response) => setProfilePic(response.data.profilePic))
+        .catch((err) => console.error('Failed to fetch profile pic:', err));
+      setView('chat');
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const tokenParam = urlParams.get('token');
+    const usernameParam = urlParams.get('username');
+    if (tokenParam && usernameParam) {
+      localStorage.setItem('token', tokenParam);
+      localStorage.setItem('username', decodeURIComponent(usernameParam));
+      api.defaults.headers.common['Authorization'] = `Bearer ${tokenParam}`;
+      setIsAuthenticated(true);
+      setUsername(decodeURIComponent(usernameParam));
+      socket.emit('registerUser', decodeURIComponent(usernameParam));
+      fetchUsers();
+      fetchUnreadMessages();
+      api
+        .get(`/user/profile-pic/${decodeURIComponent(usernameParam)}`)
+        .then((response) => setProfilePic(response.data.profilePic))
+        .catch((err) => console.error('Failed to fetch profile pic:', err));
+      setView('chat');
+      window.history.replaceState({}, document.title, '/');
+    }
+
+    if (isAuthenticated) {
+      const handleReceiveMessage = (msg) => {
+        if (msg.username !== username && !messages.some((m) => m.messageId === msg.messageId)) {
+          setContactedUsernames((prev) => (prev.includes(msg.username) ? prev : [...prev, msg.username]));
+          if (msg.username === recipient) {
+            setMessages((prev) => [...prev, msg]);
+            setUnreadMessages((prev) => ({
+              ...prev,
+              [msg.username]: 0,
+            }));
+            api.post(`/messages/mark-read/${username}/${msg.username}`);
+          } else {
+            setUnreadMessages((prev) => ({
+              ...prev,
+              [msg.username]: (prev[msg.username] || 0) + 1,
+            }));
+          }
+        }
+      };
+
+      const handleUserStatus = ({ user, status }) => {
+        setOnlineUsers((prev) => {
+          if (status === 'online' && !prev.includes(user)) {
+            return [...prev, user];
+          } else if (status === 'offline' && prev.includes(user)) {
+            return prev.filter((u) => u !== user);
+          }
+          return prev;
+        });
+      };
+
+      socket.on('connect', () => console.log('Connected to server'));
+      socket.on('receiveMessage', handleReceiveMessage);
+      socket.on('userTyping', (data) => {
+        if (data.username === recipient) {
+          setTyping(data.username);
+          setTimeout(() => setTyping(''), 2000);
+        }
+      });
+      socket.on('userListUpdate', (updatedUsers) => {
+        if (!searchTerm) {
+          const uniqueUsers = [...new Set([...updatedUsers, ...contactedUsernames])].filter((u) => u !== username);
+          setUsers(uniqueUsers);
+        }
+      });
+      socket.on('userStatus', handleUserStatus);
+
+      return () => {
+        socket.off('receiveMessage', handleReceiveMessage);
+        socket.off('userTyping');
+        socket.off('userListUpdate');
+        socket.off('userStatus');
+      };
+    }
+  }, [isAuthenticated, username, fetchUsers, fetchUnreadMessages, recipient, contactedUsernames, searchTerm]);
 
   // Load chat history
   const loadChatHistory = async (currentUser, selectedRecipient) => {
@@ -563,7 +547,10 @@ useEffect(() => {
             file: msg.file || null,
           }))
         );
-        setUnreadMessages((prev) => ({ ...prev, [selectedRecipient]: 0 }));
+        setUnreadMessages((prev) => ({
+          ...prev,
+          [selectedRecipient]: 0,
+        }));
         setContactedUsernames((prev) => (prev.includes(selectedRecipient) ? prev : [...prev, selectedRecipient]));
         await api.post(`/messages/mark-read/${currentUser}/${selectedRecipient}`);
       } catch (error) {
@@ -577,14 +564,7 @@ useEffect(() => {
 
   // Google login
   const handleGoogleLogin = () => {
-    const googleAuthUrl = `${backendUrl}/auth/google`;
-    console.log('Initiating Google Auth:', googleAuthUrl);
-    try {
-      window.location.href = googleAuthUrl;
-    } catch (error) {
-      console.error('Google Auth redirect error:', error);
-      setError('Failed to initiate Google authentication');
-    }
+    window.location.href = `${backendUrl}/auth/google`;
   };
 
   // Register user
@@ -608,6 +588,7 @@ useEffect(() => {
       setError('');
     } catch (error) {
       setError(error.response?.data?.message || 'Registration failed');
+      console.error('Registration error:', error);
     }
   };
 
@@ -628,49 +609,29 @@ useEffect(() => {
       setError('');
     } catch (error) {
       setError(error.response?.data?.message || 'Login failed');
+      console.error('Login error:', error);
     }
   };
 
   // Send text message
-// Send text message
-const sendMessage = async () => {
-  if (message.trim() && isAuthenticated && recipient) {
-    const msg = {
-      username,
-      text: message,
-      timestamp: new Date().toISOString(),
-      type: 'text',
-    };
-    try {
-      // Send message to server for persistence
-      const response = await api.post('/messages/sendText', {
-        sender: username,
-        recipient,
-        text: message,
-        timestamp: msg.timestamp,
-      });
-      const savedMessage = response.data;
-      // Emit the saved message via Socket.IO
-      socket.emit('sendMessage', {
-        recipient,
-        message: savedMessage.text,
-        type: savedMessage.type,
-        messageId: savedMessage.messageId,
-        timestamp: savedMessage.timestamp,
+  const sendMessage = async () => {
+    if (message.trim() && isAuthenticated && recipient) {
+      const msg = {
+        messageId: Date.now().toString(),
         username,
-      });
-setMessages((prev) => [...prev, savedMessage]);
+        text: message,
+        timestamp: new Date(),
+        type: 'text',
+      };
+      socket.emit('sendMessage', { recipient, message: msg.text, type: 'text' });
+      setMessages((prev) => [...prev, msg]);
       setContactedUsernames((prev) => (prev.includes(recipient) ? prev : [...prev, recipient]));
       setMessage('');
       socket.emit('stopTyping', { recipient });
       await fetchUnreadMessages();
-    } catch (error) {
-      console.error('Failed to send message:', error);
-      setError('Failed to send message');
-      setTimeout(() => setError(''), 5000);
     }
-  }
-};
+  };
+
   // Send file
   const sendFile = async (event) => {
     const file = event.target.files[0];
@@ -681,18 +642,23 @@ setMessages((prev) => [...prev, savedMessage]);
       formData.append('recipient', recipient);
       formData.append('username', username);
       formData.append('timestamp', new Date().toISOString());
+
       try {
         const response = await api.post('/messages/sendFile', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
         const msg = response.data;
         setMessages((prev) => [...prev, msg]);
-        socket.emit('sendMessage', { recipient, message: msg, type: msg.type, file: msg.file });
+        socket.emit('sendMessage', {
+          recipient,
+          message: msg,
+          type: msg.type,
+          file: msg.file,
+        });
         setContactedUsernames((prev) => (prev.includes(recipient) ? prev : [...prev, recipient]));
         await fetchUnreadMessages();
       } catch (error) {
-        console.error('Failed to send file:', error);
-        setError('Failed to send file');
+        console.error('Failed to send file:', error.response?.data?.message || error.message);
       } finally {
         fileInputRef.current.disabled = false;
         fileInputRef.current.value = '';
@@ -708,6 +674,7 @@ setMessages((prev) => [...prev, savedMessage]);
       const formData = new FormData();
       formData.append('profilePic', file);
       formData.append('username', username);
+
       try {
         const response = await api.post('/user/update-profile-pic', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
@@ -716,7 +683,6 @@ setMessages((prev) => [...prev, savedMessage]);
         setUserDPs((prev) => ({ ...prev, [username]: response.data.filename }));
       } catch (error) {
         console.error('Failed to update profile pic:', error);
-        setError('Failed to update profile picture');
       } finally {
         profilePicInputRef.current.disabled = false;
         profilePicInputRef.current.value = '';
@@ -739,19 +705,24 @@ setMessages((prev) => [...prev, savedMessage]);
     setReactions((prev) => {
       const messageReactions = prev[messageId] || {};
       const userReactions = messageReactions[username] || [];
-      const updatedUserReactions = userReactions.includes(emoji)
-        ? userReactions.filter((e) => e !== emoji)
-        : [...userReactions, emoji];
+      let updatedUserReactions;
+      if (userReactions.includes(emoji)) {
+        updatedUserReactions = userReactions.filter((e) => e !== emoji);
+      } else {
+        updatedUserReactions = [...userReactions, emoji];
+      }
       const updatedMessageReactions = {
         ...messageReactions,
         [username]: updatedUserReactions,
       };
-      return { ...prev, [messageId]: updatedMessageReactions };
+      return {
+        ...prev,
+        [messageId]: updatedMessageReactions,
+      };
     });
     setReactionPicker({ messageId: null, visible: false });
   };
 
-  // Toggle reaction picker
   const toggleReactionPicker = (messageId) => {
     setReactionPicker((prev) => ({
       messageId,
@@ -759,20 +730,13 @@ setMessages((prev) => [...prev, savedMessage]);
     }));
   };
 
-  // Close reaction picker on outside click
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (reactionPicker.visible && !event.target.closest('.reaction-picker') && !event.target.closest('.sent-message-text p, .received-message-text p')) {
-        setReactionPicker({ messageId: null, visible: false });
-      }
-    };
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, [reactionPicker]);
-
   // Logout
   const handleLogout = () => {
-    localStorage.clear();
+    localStorage.removeItem('token');
+    localStorage.removeItem('username');
+    localStorage.removeItem('contactedUsernames');
+    localStorage.removeItem('reactions');
+    localStorage.removeItem('showReactions');
     setIsAuthenticated(false);
     setUsername('');
     setMessages([]);
@@ -784,14 +748,23 @@ setMessages((prev) => [...prev, savedMessage]);
     setContactedUsernames([]);
     setReactions({});
     setShowReactions(true);
-    setSearchTerm('');
     socket.disconnect();
   };
 
   // Debounced fetch users
-  const debouncedFetchUsers = useCallback(debounce(fetchUsers, 400), [fetchUsers]);
+  const debouncedFetchUsers = useCallback(
+    debounce((query) => {
+      fetchUsers(query);
+    }, 300),
+    [fetchUsers]
+  );
 
-  // Scroll to bottom
+  // Compute contacted users
+  const contactedUsers = users.filter((user) =>
+    unreadMessages[user] || contactedUsernames.includes(user)
+  );
+
+  // Scroll to bottom of message box
   useEffect(() => {
     if (messageBoxRef.current) {
       messageBoxRef.current.scrollTop = messageBoxRef.current.scrollHeight;
@@ -805,7 +778,7 @@ setMessages((prev) => [...prev, savedMessage]);
     } else {
       fetchUsers();
     }
-  }, [searchTerm, debouncedFetchUsers]);
+  }, [searchTerm, debouncedFetchUsers, fetchUsers]);
 
   // Modal handlers
   const showProfilePicModal = () => setIsProfilePicModalOpen(true);
@@ -819,104 +792,121 @@ setMessages((prev) => [...prev, savedMessage]);
 
   const showProfile = () => setView('profile');
   const showInfo = () => setView('info');
+  const toggleSidebar = (value) => setIsSidebarOpen(value);
 
   if (!isAuthenticated) {
     return (
-      <div className="signup-container">
-        <div className="signup-box">
+     <div className="signup-container">
+        <div className={`signup-box ${isSignupActive ? 'signup-mode' : ''}`}>
           <h2>{view === 'login' ? 'Sign In' : 'Sign Up'}</h2>
           <div className="signup-nav">
-            <button
-              className={`nav ${view === 'login' ? 'active-tab' : ''}`}
-              onClick={() => setView('login')}
-            >
-              Sign In
-            </button>
-            <button
-              className={`nav ${view === 'register' ? 'active-tab' : ''}`}
-              onClick={() => setView('register')}
-            >
-              Sign Up
-            </button>
-          </div>
-          {error && <p className="error">{error}</p>}
-          {view === 'login' ? (
-            <form onSubmit={handleLogin}>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Email"
-                className="signup-input"
-                required
-              />
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Password"
-                className="signup-input"
-                required
-                autoComplete="current-password"
-              />
-              <button type="submit" className="signup-button">
-                Sign In
-              </button>
-              <p className="already-have-account">
-                Don't have an account?{' '}
-                <a href="#" onClick={() => setView('register')}>
-                  Sign Up
-                </a>
-              </p>
-              <div className="or">OR</div>
-              <button type="button" className="google-btn" onClick={handleGoogleLogin}>
-                Sign In with Google
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={handleRegister}>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Username"
-                className="signup-input"
-                required
-              />
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Email"
-                className="signup-input"
-                required
-              />
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Password"
-                className="signup-input"
-                required
-                autoComplete="new-password"
-              />
-              <button type="submit" className="signup-button">
+            <div className="signup">
+              <button
+                className={`nav ${view === 'register' ? 'active-tab' : ''}`}
+                onClick={() => {
+                  setView('register');
+                  setIsSignupActive(true);
+                }}
+              >
                 Sign Up
               </button>
-              <p className="have-account">
-                Already have an account?{' '}
-                <a href="#" onClick={() => setView('login')}>
-                  Sign In
-                </a>
-              </p>
-              <div className="or">OR</div>
-              <button type="button" className="google-btn" onClick={handleGoogleLogin}>
-                Sign Up with Google
+            </div>
+            <div className="signin">
+              <button
+                className={`nav ${view === 'login' ? 'active-tab' : ''}`}
+                onClick={() => {
+                  setView('login');
+                  setIsSignupActive(false);
+                }}
+              >
+                Sign In
               </button>
-            </form>
-          )}
+            </div>
+          </div>
+          <div className="signup-form">
+            {error && <p className="error">{error}</p>}
+            {view === 'login' ? (
+              <form onSubmit={handleLogin}>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Email"
+                  className="signup-input"
+                  required
+                />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Password"
+                  className="signup-input"
+                  required
+                />
+                <button type="submit" className="signup-button">
+                  Sign In
+                </button>
+                <p className="already-have-account">
+                  Don't have an account?{' '}
+                  <a href="#" onClick={() => setView('register')}>
+                    Sign Up
+                  </a>
+                </p>
+                <div className="or">OR</div>
+                <button type="button" className="google-btn" onClick={handleGoogleLogin}>
+                  Sign In with Google
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleRegister}>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Username"
+                  className="signup-input"
+                  required
+                />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Email"
+                  className="signup-input"
+                  required
+                />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Password"
+                  className="signup-input"
+                  required
+                />
+                <button type="submit" className="signup-button">
+                  Sign Up
+                </button>
+                <p className="have-account">
+                  Already have an account?{' '}
+                  <a href="#" onClick={() => setView('login')}>
+                    Sign In
+                  </a>
+                </p>
+                <div className="or">OR</div>
+                <button type="button" className="google-btn" onClick={handleGoogleLogin}>
+                  Sign Up with Google
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+        <div className="branding">
+          <div className="chat-icon"></div>
+          <h1>CONVO</h1>
+          <p>where connection comes to life</p>
         </div>
       </div>
+  
     );
   }
 
@@ -938,25 +928,25 @@ setMessages((prev) => [...prev, savedMessage]);
           onClose={closeContactModal}
         />
       )}
-      <div className="sidebar-icons">
-        <div className="icon" onClick={() => { setView('chat'); setRecipient(''); setMessages([]); }}>
-          <BsChatLeft size={20} />
-        </div>
-        <div className="icon" onClick={showProfile}>
-          <FiUser size={20} />
-        </div>
-        <div className="icon" onClick={showInfo}>
-          <BsInfoCircle size={20} />
-        </div>
-        <img
-          src={profilePic ? `${backendUrl}/Uploads/${profilePic}` : `https://placehold.co/40?text=${username.charAt(0)}`}
-          alt={username}
-          className="icon avatar"
-        />
-      </div>
+<div className="sidebar-icons">
+  <div className="icon" onClick={() => { setView('chat'); setRecipient(''); setMessages([]); }}>
+    <BsChatLeft />
+  </div>
+  <div className="icon" onClick={showProfile}>
+    <FiUser />
+  </div>
+  <div className="icon" onClick={showInfo}>
+    <BsInfoCircle />
+  </div>
+  <img
+    src={profilePic ? `${backendUrl}/Uploads/${profilePic}` : `https://via.placeholder.com/40?text=${username.charAt(0)}`}
+    alt={username}
+    className="icon"
+  />
+</div>
       <Sidebar
         username={username}
-        users={filteredUsers}
+        users={searchTerm ? users : contactedUsers}
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
         recipient={recipient}
@@ -964,39 +954,111 @@ setMessages((prev) => [...prev, savedMessage]);
         loadChatHistory={loadChatHistory}
         unreadMessages={unreadMessages}
         userDPs={userDPs}
+        profilePic={profilePic}
+        showProfile={showProfile}
+        showInfo={showInfo}
+        setView={setView}
         isSidebarOpen={isSidebarOpen}
-        toggleSidebar={setIsSidebarOpen}
+        toggleSidebar={toggleSidebar}
         onlineUsers={onlineUsers}
         showContactPicModal={showContactPicModal}
-        isSearching={isSearching}
       />
       {view === 'chat' && (
         <div className="main-chat">
           <ChatHeader
             recipient={recipient}
+            username={username}
+            profilePic={profilePic}
             userDPs={userDPs}
             setIsSettingsOpen={setIsSettingsOpen}
-            toggleSidebar={setIsSidebarOpen}
+            toggleSidebar={toggleSidebar}
             onlineUsers={onlineUsers}
           />
           <div className="message-box" ref={messageBoxRef}>
             {!recipient ? (
-              <p className="empty-convo">Convo<br />Connect with friends!</p>
+              <p className="empty-convo">Convo<br />where connection comes to life</p>
             ) : messages.length === 0 ? (
-              <p className="empty-convo">No messages yet. Say hi!</p>
+              <p className="empty-convo">No messages yet. Start the conversation!</p>
             ) : (
-              messages.map((msg, index) => (
-                <Message
-                  key={msg.messageId || `message-${index}`}
-                  msg={msg}
-                  username={username}
-                  toggleReactionPicker={toggleReactionPicker}
-                  reactionPicker={reactionPicker}
-                  handleReaction={handleReaction}
-                  showReactions={showReactions}
-                  reactions={reactions}
-                />
-              ))
+              messages.reduce((acc, msg, index) => {
+                const currentDate = new Date(msg.timestamp).toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                });
+                const prevMsg = messages[index - 1];
+                const prevDate = prevMsg
+                  ? new Date(prevMsg.timestamp).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    })
+                  : null;
+
+                if (index === 0 || currentDate !== prevDate) {
+                  acc.push(
+                    <div key={`date-${currentDate}-${index}`} className="date-separator">
+                      <span>{currentDate}</span>
+                    </div>
+                  );
+                }
+
+                acc.push(
+                  <div
+                    key={msg.messageId || index}
+                    className={msg.username === username ? 'sent-message-container' : 'received-message-container'}
+                  >
+                    {msg.type === 'text' ? (
+                      <div className={msg.username === username ? 'sent-message' : 'received-message'}>
+                        <p onClick={() => toggleReactionPicker(msg.messageId)} style={{ cursor: 'pointer' }}>
+                          {msg.text}
+                          <small>{new Date(msg.timestamp).toLocaleTimeString()}</small>
+                        </p>
+                        {reactionPicker.visible && reactionPicker.messageId === msg.messageId && (
+                          <div className="reaction-picker">
+                            {['👍', '❤️', '😂', '😮', '😢'].map((emoji) => (
+                              <span
+                                key={emoji}
+                                className="reaction-emoji"
+                                onClick={() => handleReaction(msg.messageId, emoji)}
+                              >
+                                {emoji}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {showReactions && reactions[msg.messageId] && (
+                          <div className="reactions">
+                            {Object.entries(reactions[msg.messageId]).map(([user, emojis]) =>
+                              emojis.map((emoji, i) => (
+                                <span key={`${user}-${emoji}-${i}`} className="reaction">
+                                  {emoji}
+                                </span>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className={msg.username === username ? 'sent-message' : 'received-message'}>
+                        {msg.file && (
+                          <a
+                            href={`${backendUrl}/Uploads/${msg.file}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="file-link"
+                            download={msg.type === 'document'}
+                          >
+                            {msg.type === 'image' ? 'View Image' : 'View Document'}
+                          </a>
+                        )}
+                        <small>{new Date(msg.timestamp).toLocaleTimeString()}</small>
+                      </div>
+                    )}
+                  </div>
+                );
+                return acc;
+              }, [])
             )}
             {typing && recipient && <p className="typing-indicator">{typing} is typing...</p>}
           </div>
@@ -1021,7 +1083,7 @@ setMessages((prev) => [...prev, savedMessage]);
         profilePicInputRef={profilePicInputRef}
         showProfilePicModal={showProfilePicModal}
         theme={theme}
-        toggleTheme={toggleTheme} // Fixed prop name
+        toggleTheme={toggleTheme}
         showReactions={showReactions}
         setShowReactions={setShowReactions}
       />
