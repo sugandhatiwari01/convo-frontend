@@ -77,7 +77,7 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
               onClick={() => {
                 setRecipient(user);
                 loadChatHistory(username, user);
-                toggleSidebar(false);
+                toggleSidebar(false); // Always close on mobile after selection
                 setSearchTerm('');
               }}
             >
@@ -110,7 +110,9 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
             </div>
           ))
         ) : (
-          <p>{searchTerm ? `No users found starting with "${searchTerm}"` : 'No contacts available'}</p>
+          <p className="no-results">
+            {searchTerm ? `No users found starting with "${searchTerm}"` : 'No contacts available. Start a conversation!'}
+          </p>
         )}
       </div>
     </div>
@@ -366,7 +368,10 @@ function App() {
   const [profilePic, setProfilePic] = useState(null);
   const [userDPs, setUserDPs] = useState({});
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(
+    window.innerWidth > 768 ? 
+    localStorage.getItem('isSidebarOpen') === 'true' : false
+  );
   const [isProfilePicModalOpen, setIsProfilePicModalOpen] = useState(false);
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
   const [onlineUsers, setOnlineUsers] = useState([]);
@@ -396,6 +401,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem('searchTerm', searchTerm);
   }, [searchTerm]);
+
+  useEffect(() => {
+    localStorage.setItem('isSidebarOpen', isSidebarOpen);
+  }, [isSidebarOpen]);
 
   // Apply theme
   useEffect(() => {
@@ -454,7 +463,9 @@ function App() {
   // Initialize sidebar visibility
   useEffect(() => {
     const handleResize = () => {
-      setIsSidebarOpen(window.innerWidth > 768);
+      const shouldBeOpen = window.innerWidth > 768 ? 
+        localStorage.getItem('isSidebarOpen') !== 'false' : false;
+      setIsSidebarOpen(shouldBeOpen);
     };
     window.addEventListener('resize', handleResize);
     handleResize();
@@ -481,60 +492,69 @@ function App() {
   }, [username]);
 
   // Fetch users with optimized search
-const fetchUsers = useCallback(
-  async (query = '') => {
-    if (!username || !isAuthenticated) return;
-    setIsSearching(true);
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) throw new Error('No authentication token');
-      const trimmedQuery = query.trim(); // Trim query
-      const response = await retry(() =>
-        api.get('/users/search', {
-          params: { query: trimmedQuery, currentUser: username.toLowerCase() },
-          headers: { Authorization: `Bearer ${token}` },
-        })
-      );
-      let uniqueUsers = [...new Set(response.data)].filter(
-        (u) => u.toLowerCase() !== username.toLowerCase()
-      );
-      if (!trimmedQuery) {
-        // Include contacted usernames when query is empty
-        uniqueUsers = [...new Set([...uniqueUsers, ...contactedUsernames])].filter(
+  const fetchUsers = useCallback(
+    async (query = '') => {
+      if (!username || !isAuthenticated) return;
+      setIsSearching(true);
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) throw new Error('No authentication token');
+        const trimmedQuery = query.trim();
+        // Local filtering for contactedUsernames
+        const localMatches = trimmedQuery
+          ? contactedUsernames.filter(
+              (u) => u.toLowerCase().startsWith(trimmedQuery.toLowerCase()) && u.toLowerCase() !== username.toLowerCase()
+            )
+          : contactedUsernames.filter((u) => u.toLowerCase() !== username.toLowerCase());
+        setUsers(localMatches); // Show local matches immediately
+        if (!trimmedQuery && localMatches.length > 0) {
+          // Skip API call if local matches exist and query is empty
+          const dpPromises = localMatches.map((user) =>
+            api
+              .get(`/user/profile-pic/${user}`, { headers: { Authorization: `Bearer ${token}` } })
+              .then((res) => ({ user, profilePic: res.data.profilePic }))
+              .catch(() => ({ user, profilePic: null }))
+          );
+          const dps = await Promise.all(dpPromises);
+          setUserDPs(Object.fromEntries(dps.map(({ user, profilePic }) => [user, profilePic])));
+          setIsSearching(false);
+          if (localMatches.length > 0) fetchUnreadMessages();
+          return;
+        }
+        const response = await retry(() =>
+          api.get('/users/search', {
+            params: { query: trimmedQuery, currentUser: username.toLowerCase() },
+            headers: { Authorization: `Bearer ${token}` },
+          })
+        );
+        let uniqueUsers = [...new Set(response.data)].filter(
           (u) => u.toLowerCase() !== username.toLowerCase()
         );
-      } else {
-        // Filter contacted usernames by query
-        const localMatches = contactedUsernames.filter(
-          (u) => u.toLowerCase().startsWith(trimmedQuery.toLowerCase()) && u.toLowerCase() !== username.toLowerCase()
-        );
         uniqueUsers = [...new Set([...uniqueUsers, ...localMatches])];
+        setUsers(uniqueUsers);
+        const dpPromises = uniqueUsers.map((user) =>
+          api
+            .get(`/user/profile-pic/${user}`, { headers: { Authorization: `Bearer ${token}` } })
+            .then((res) => ({ user, profilePic: res.data.profilePic }))
+            .catch(() => ({ user, profilePic: null }))
+        );
+        const dps = await Promise.all(dpPromises);
+        setUserDPs(Object.fromEntries(dps.map(({ user, profilePic }) => [user, profilePic])));
+        if (uniqueUsers.length > 0) fetchUnreadMessages();
+      } catch (error) {
+        console.error('Fetch users error:', error);
+        setError('Failed to load contacts');
+        setTimeout(() => setError(''), 5000);
+        const filteredContacts = contactedUsernames.filter(
+          (u) => u.toLowerCase().startsWith(query.toLowerCase()) && u.toLowerCase() !== username.toLowerCase()
+        );
+        setUsers(filteredContacts);
+      } finally {
+        setIsSearching(false);
       }
-      setUsers(uniqueUsers);
-      const dpPromises = uniqueUsers.map((user) =>
-        api
-          .get(`/user/profile-pic/${user}`, { headers: { Authorization: `Bearer ${token}` } })
-          .then((res) => ({ user, profilePic: res.data.profilePic }))
-          .catch(() => ({ user, profilePic: null }))
-      );
-      const dps = await Promise.all(dpPromises);
-      setUserDPs(Object.fromEntries(dps.map(({ user, profilePic }) => [user, profilePic])));
-      if (uniqueUsers.length > 0) fetchUnreadMessages();
-    } catch (error) {
-      console.error('Fetch users error:', error);
-      setError('Failed to load contacts');
-      setTimeout(() => setError(''), 5000);
-      // Fallback to filtered contacted usernames
-      const filteredContacts = contactedUsernames.filter(
-        (u) => u.toLowerCase().startsWith(query.toLowerCase()) && u.toLowerCase() !== username.toLowerCase()
-      );
-      setUsers(filteredContacts);
-    } finally {
-      setIsSearching(false);
-    }
-  },
-  [username, isAuthenticated, contactedUsernames, fetchUnreadMessages]
-);
+    },
+    [username, isAuthenticated, contactedUsernames, fetchUnreadMessages]
+  );
 
   // Memoized user list
   const filteredUsers = useMemo(() => {
@@ -542,43 +562,42 @@ const fetchUsers = useCallback(
   }, [users]);
 
   // Socket handling
-useEffect(() => {
-  if (isAuthenticated) {
-    socket.on('connect', () => console.log('Connected to server'));
-    socket.on('receiveMessage', (msg) => {
-      // Only add message if it doesn't exist in the state
-      if (!messages.some((m) => m.messageId === msg.messageId)) {
-        setMessages((prev) => [...prev, msg]);
-        setContactedUsernames((prev) => (prev.includes(msg.username) ? prev : [...prev, msg.username]));
-        if (msg.username === recipient) {
-          setUnreadMessages((prev) => ({ ...prev, [msg.username]: 0 }));
-          api.post(`/messages/mark-read/${username}/${msg.username}`);
-        } else {
-          setUnreadMessages((prev) => ({
-            ...prev,
-            [msg.username]: (prev[msg.username] || 0) + 1,
-          }));
+  useEffect(() => {
+    if (isAuthenticated) {
+      socket.on('connect', () => console.log('Connected to server'));
+      socket.on('receiveMessage', (msg) => {
+        if (!messages.some((m) => m.messageId === msg.messageId)) {
+          setMessages((prev) => [...prev, msg]);
+          setContactedUsernames((prev) => (prev.includes(msg.username) ? prev : [...prev, msg.username]));
+          if (msg.username === recipient) {
+            setUnreadMessages((prev) => ({ ...prev, [msg.username]: 0 }));
+            api.post(`/messages/mark-read/${username}/${msg.username}`);
+          } else {
+            setUnreadMessages((prev) => ({
+              ...prev,
+              [msg.username]: (prev[msg.username] || 0) + 1,
+            }));
+          }
         }
-      }
-    });
-    socket.on('userTyping', (data) => {
-      if (data.username === recipient) {
-        setTyping(data.username);
-        setTimeout(() => setTyping(''), 2000);
-      }
-    });
-    socket.on('userStatus', ({ user, status }) => {
-      setOnlineUsers((prev) =>
-        status === 'online' ? [...new Set([...prev, user])] : prev.filter((u) => u !== user)
-      );
-    });
-    return () => {
-      socket.off('receiveMessage');
-      socket.off('userTyping');
-      socket.off('userStatus');
-    };
-  }
-}, [isAuthenticated, username, recipient, messages]);
+      });
+      socket.on('userTyping', (data) => {
+        if (data.username === recipient) {
+          setTyping(data.username);
+          setTimeout(() => setTyping(''), 2000);
+        }
+      });
+      socket.on('userStatus', ({ user, status }) => {
+        setOnlineUsers((prev) =>
+          status === 'online' ? [...new Set([...prev, user])] : prev.filter((u) => u !== user)
+        );
+      });
+      return () => {
+        socket.off('receiveMessage');
+        socket.off('userTyping');
+        socket.off('userStatus');
+      };
+    }
+  }, [isAuthenticated, username, recipient, messages]);
 
   // Load chat history
   const loadChatHistory = async (currentUser, selectedRecipient) => {
@@ -664,45 +683,43 @@ useEffect(() => {
   };
 
   // Send text message
-// Send text message
-const sendMessage = async () => {
-  if (message.trim() && isAuthenticated && recipient) {
-    const msg = {
-      username,
-      text: message,
-      timestamp: new Date().toISOString(),
-      type: 'text',
-    };
-    try {
-      // Send message to server for persistence
-      const response = await api.post('/messages/sendText', {
-        sender: username,
-        recipient,
-        text: message,
-        timestamp: msg.timestamp,
-      });
-      const savedMessage = response.data;
-      // Emit the saved message via Socket.IO
-      socket.emit('sendMessage', {
-        recipient,
-        message: savedMessage.text,
-        type: savedMessage.type,
-        messageId: savedMessage.messageId,
-        timestamp: savedMessage.timestamp,
+  const sendMessage = async () => {
+    if (message.trim() && isAuthenticated && recipient) {
+      const msg = {
         username,
-      });
-setMessages((prev) => [...prev, savedMessage]);
-      setContactedUsernames((prev) => (prev.includes(recipient) ? prev : [...prev, recipient]));
-      setMessage('');
-      socket.emit('stopTyping', { recipient });
-      await fetchUnreadMessages();
-    } catch (error) {
-      console.error('Failed to send message:', error);
-      setError('Failed to send message');
-      setTimeout(() => setError(''), 5000);
+        text: message,
+        timestamp: new Date().toISOString(),
+        type: 'text',
+      };
+      try {
+        const response = await api.post('/messages/sendText', {
+          sender: username,
+          recipient,
+          text: message,
+          timestamp: msg.timestamp,
+        });
+        const savedMessage = response.data;
+        socket.emit('sendMessage', {
+          recipient,
+          message: savedMessage.text,
+          type: savedMessage.type,
+          messageId: savedMessage.messageId,
+          timestamp: savedMessage.timestamp,
+          username,
+        });
+        setMessages((prev) => [...prev, savedMessage]);
+        setContactedUsernames((prev) => (prev.includes(recipient) ? prev : [...prev, recipient]));
+        setMessage('');
+        socket.emit('stopTyping', { recipient });
+        await fetchUnreadMessages();
+      } catch (error) {
+        console.error('Failed to send message:', error);
+        setError('Failed to send message');
+        setTimeout(() => setError(''), 5000);
+      }
     }
-  }
-};
+  };
+
   // Send file
   const sendFile = async (event) => {
     const file = event.target.files[0];
@@ -823,21 +840,21 @@ setMessages((prev) => [...prev, savedMessage]);
   // Debounced fetch users
   const debouncedFetchUsers = useCallback(debounce(fetchUsers, 400), [fetchUsers]);
 
+  // Fetch users on search
+  useEffect(() => {
+    if (searchTerm.trim()) {
+      debouncedFetchUsers(searchTerm);
+    } else {
+      fetchUsers();
+    }
+  }, [searchTerm, debouncedFetchUsers]);
+
   // Scroll to bottom
   useEffect(() => {
     if (messageBoxRef.current) {
       messageBoxRef.current.scrollTop = messageBoxRef.current.scrollHeight;
     }
   }, [messages]);
-
-  // Fetch users on search
-  useEffect(() => {
-    if (searchTerm) {
-      debouncedFetchUsers(searchTerm);
-    } else {
-      fetchUsers();
-    }
-  }, [searchTerm, debouncedFetchUsers]);
 
   // Modal handlers
   const showProfilePicModal = () => setIsProfilePicModalOpen(true);
@@ -1053,7 +1070,7 @@ setMessages((prev) => [...prev, savedMessage]);
         profilePicInputRef={profilePicInputRef}
         showProfilePicModal={showProfilePicModal}
         theme={theme}
-        toggleTheme={toggleTheme} // Fixed prop name
+        toggleTheme={toggleTheme}
         showReactions={showReactions}
         setShowReactions={setShowReactions}
       />
