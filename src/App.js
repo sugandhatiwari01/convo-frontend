@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import io from 'socket.io-client';
 import axios from 'axios';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import './App.css';
 import { IoSearchOutline, IoSettingsOutline, IoSendSharp, IoAttachOutline, IoChevronBack } from 'react-icons/io5';
 import { BsChatLeft, BsInfoCircle } from 'react-icons/bs';
@@ -349,7 +351,7 @@ function App() {
     console.log('Auth check:', { token, storedUsername, tokenParam, usernameParam, errorParam });
 
     if (errorParam) {
-      setError(`Authentication failed: ${errorParam}`);
+      toast.error(`Authentication failed: ${errorParam}`, { autoClose: 5000 });
       window.history.replaceState({}, document.title, '/');
       return;
     }
@@ -446,7 +448,7 @@ function App() {
         if (uniqueUsers.length > 0) fetchUnreadMessages();
       } catch (error) {
         console.error('Fetch users error:', error);
-        setError('Failed to load contacts');
+        toast.error('Failed to load contacts');
         setUsers([...contactedUsernames].filter((u) => u.toLowerCase() !== username.toLowerCase()));
       }
     },
@@ -526,7 +528,7 @@ function App() {
       window.location.href = googleAuthUrl;
     } catch (error) {
       console.error('Google Auth redirect error:', error);
-      setError('Failed to initiate Google authentication');
+      toast.error('Failed to initiate Google authentication');
     }
   };
 
@@ -534,23 +536,23 @@ function App() {
   const handleRegister = async (e) => {
     e.preventDefault();
     if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
-      setError('Username must be 3-20 characters (letters, numbers, underscores)');
+      toast.error('Username must be 3-20 characters (letters, numbers, underscores)');
       return;
     }
     if (!/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(email)) {
-      setError('Invalid email format');
+      toast.error('Invalid email format');
       return;
     }
     if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+      toast.error('Password must be at least 6 characters');
       return;
     }
     try {
       await api.post('/auth/register', { email, username, password });
       setView('login');
-      setError('');
+      toast.success('Registration successful! Please sign in.');
     } catch (error) {
-      setError(error.response?.data?.message || 'Registration failed');
+      toast.error(error.response?.data?.message || 'Registration failed');
     }
   };
 
@@ -568,9 +570,9 @@ function App() {
       socket.emit('registerUser', response.data.username);
       fetchUsers();
       fetchUnreadMessages();
-      setError('');
+      toast.success('Login successful!');
     } catch (error) {
-      setError(error.response?.data?.message || 'Login failed');
+      toast.error(error.response?.data?.message || 'Login failed');
     }
   };
 
@@ -614,6 +616,7 @@ function App() {
         await fetchUnreadMessages();
       } catch (error) {
         console.error('Failed to send file:', error);
+        toast.error('Failed to send file');
       } finally {
         fileInputRef.current.disabled = false;
         fileInputRef.current.value = '';
@@ -635,8 +638,10 @@ function App() {
         });
         setProfilePic(response.data.filename);
         setUserDPs((prev) => ({ ...prev, [username]: response.data.filename }));
+        toast.success('Profile picture updated!');
       } catch (error) {
         console.error('Failed to update profile pic:', error);
+        toast.error('Failed to update profile picture');
       } finally {
         profilePicInputRef.current.disabled = false;
         profilePicInputRef.current.value = '';
@@ -694,6 +699,7 @@ function App() {
     setReactions({});
     setShowReactions(true);
     socket.disconnect();
+    toast.success('Logged out successfully!');
   };
 
   // Debounced fetch users
@@ -747,7 +753,6 @@ function App() {
               Sign Up
             </button>
           </div>
-          {error && <p className="error">{error}</p>}
           {view === 'login' ? (
             <form onSubmit={handleLogin}>
               <input
@@ -829,6 +834,7 @@ function App() {
           <h1>CONVO</h1>
           <p>where connection comes to life</p>
         </div>
+        <ToastContainer />
       </div>
     );
   }
@@ -979,6 +985,7 @@ function App() {
         showReactions={showReactions}
         setShowReactions={setShowReactions}
       />
+      <ToastContainer />
     </div>
   );
 }
