@@ -33,12 +33,12 @@ class ErrorBoundary extends React.Component {
 }
 
 // API and backend URLs
-const apiBase = process.env.REACT_APP_API_BASE || 'https://convodb1.onrender.com/api';
+const apiBase = process.env.REACT_APP_API_BASE || 'https://convodb1.onrender.com'; // Removed /api
 const backendUrl = process.env.REACT_APP_BACKEND_URL || 'https://convodb1.onrender.com';
 
 // Axios instance
 const api = axios.create({
-  baseURL: apiBase,
+  baseURL: apiBase, // e.g., https://convodb1.onrender.com
   withCredentials: true,
 });
 
@@ -543,12 +543,12 @@ function App() {
       try {
         const token = localStorage.getItem('token');
         if (!token) throw new Error('No authentication token');
-        const response = await retry(() =>
-          api.get('/users/search', {
-            params: { query: query.toLowerCase(), currentUser: username.toLowerCase() },
-            headers: { Authorization: `Bearer ${token}` },
-          })
-        );
+ const response = await retry(() =>
+  api.get('/api/users/search', { // Changed from /users/search
+    params: { query: query.toLowerCase(), currentUser: username.toLowerCase() },
+    headers: { Authorization: `Bearer ${token}` },
+  })
+);
         let uniqueUsers = [...new Set(response.data)].filter(
           (u) => u.toLowerCase() !== username.toLowerCase()
         );
@@ -701,43 +701,43 @@ const handleRegister = async (e) => {
     return;
   }
   try {
-    console.log('Sending registration request to:', `${apiBase}/users/register`); // Debug log
-    await api.post('/users/register', { email, username: username.toLowerCase(), password });
+    console.log('Sending registration request to:', `${apiBase}/api/users/register`); // Debug log
+    await api.post('/api/users/register', { email, username: username.toLowerCase(), password });
     setView('login');
-    setError('');
+    setError('Registration successful! Please log in.');
     setEmail('');
     setUsername('');
     setPassword('');
+    setTimeout(() => setError(''), 5000);
   } catch (error) {
     console.error('Registration error:', error.message, error.response?.data);
-    setError(error.response?.data?.message || 'Registration failed');
+    setError(error.response?.data?.message || 'Registration failed. Please try again.');
     setTimeout(() => setError(''), 5000);
   }
 };
-
-  // Login user
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    try {
-      const response = await api.post('/api/users/login', { email, password });
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('username', response.data.username.toLowerCase());
-      api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
-      setIsAuthenticated(true);
-      setUsername(response.data.username.toLowerCase());
-      setView('chat');
-      socket.emit('registerUser', response.data.username.toLowerCase());
-      fetchUsers();
-      fetchUnreadMessages();
-      setError('');
-      setEmail('');
-      setPassword('');
-    } catch (error) {
-      console.error('Login error:', error.message);
-      setError(error.response?.data?.message || 'Login failed');
-      setTimeout(() => setError(''), 5000);
-    }
-  };
+const handleLogin = async (e) => {
+  e.preventDefault();
+  try {
+    console.log('Sending login request to:', `${apiBase}/api/users/login`); // Debug log
+    const response = await api.post('/api/users/login', { email, password });
+    localStorage.setItem('token', response.data.token);
+    localStorage.setItem('username', response.data.username.toLowerCase());
+    api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
+    setIsAuthenticated(true);
+    setUsername(response.data.username.toLowerCase());
+    setView('chat');
+    socket.emit('registerUser', response.data.username.toLowerCase());
+    fetchUsers();
+    fetchUnreadMessages();
+    setError('');
+    setEmail('');
+    setPassword('');
+  } catch (error) {
+    console.error('Login error:', error.message, error.response?.data);
+    setError(error.response?.data?.message || 'Login failed. Please check your email or password.');
+    setTimeout(() => setError(''), 5000);
+  }
+};
 
   // Send text message
   const sendMessage = async () => {
