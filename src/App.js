@@ -738,7 +738,7 @@ function App() {
       return;
     }
     try {
-      const response = await api.post('/api/users/register', {
+      const response = await api.post('/users/register', {
         email,
         username: username.toLowerCase(),
         password,
@@ -766,7 +766,7 @@ function App() {
   const handleLogin = useCallback(async (e) => {
     e.preventDefault();
     try {
-      const response = await api.post('/api/users/login', { email, password });
+      const response = await api.post('/users/login', { email, password });
       console.log('Login successful:', response.data);
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('username', response.data.username.toLowerCase());
