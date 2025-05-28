@@ -175,15 +175,11 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
 };
 
 // ChatHeader Component
-const ChatHeader = ({ recipient, userDPs, setIsSettingsOpen, toggleSidebar, onlineUsers, isSidebarOpen }) => {
+const ChatHeader = ({ recipient, userDPs, setIsSettingsOpen, toggleSidebar, onlineUsers }) => {
   return (
     <div className="chat-header">
       <div className="user-info">
-        <IoMenu
-          className="menu-button"
-          onClick={() => toggleSidebar(!isSidebarOpen)} // Toggle based on current state
-          aria-label={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
-        />
+        <IoMenu className="menu-button" onClick={() => toggleSidebar(true)} aria-label="Open sidebar" />
         {recipient && (
           <>
             {userDPs[recipient] ? (
@@ -1070,14 +1066,13 @@ useEffect(() => {
           />
           {view === 'chat' && (
             <div className="main-chat">
-          <ChatHeader
-  recipient={recipient}
-  userDPs={userDPs}
-  setIsSettingsOpen={setIsSettingsOpen}
-  toggleSidebar={setIsSidebarOpen}
-  onlineUsers={onlineUsers}
-  isSidebarOpen={isSidebarOpen} // Add this prop
-/>
+              <ChatHeader
+                recipient={recipient}
+                userDPs={userDPs}
+                setIsSettingsOpen={setIsSettingsOpen}
+                toggleSidebar={setIsSidebarOpen}
+                onlineUsers={onlineUsers}
+              />
               <div className="message-box" ref={messageBoxRef}>
                 {!recipient ? (
                   <p className="empty-convo">
