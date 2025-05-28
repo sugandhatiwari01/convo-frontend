@@ -527,15 +527,14 @@ function App() {
     }
   }, []);
 
-// Initialize sidebar visibility
-useEffect(() => {
-  const handleResize = () => {
-    setIsSidebarOpen(window.innerWidth > 768); // Open sidebar on large screens, close on mobile
-  };
-  window.addEventListener('resize', handleResize);
-  handleResize(); // Call on mount to set initial state
-  return () => window.removeEventListener('resize', handleResize);
-}, []);
+  // Initialize sidebar visibility
+  useEffect(() => {
+    const handleResize = () => {
+      setIsSidebarOpen(window.innerWidth > 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Toggle theme
   const toggleTheme = useCallback(() => {
