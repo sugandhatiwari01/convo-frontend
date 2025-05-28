@@ -25,7 +25,7 @@ class ErrorBoundary extends React.Component {
         <div className="error-container">
           <h1>Something went wrong</h1>
           <p>{this.state.error?.message || 'Please try refreshing the page.'}</p>
-          <button onClick={() => window.location.reload()}>Retry</button>
+          <button onClick={() => window.location.reload()}>Retry</button> {/* Added retry button */}
         </div>
       );
     }
@@ -37,24 +37,11 @@ class ErrorBoundary extends React.Component {
 const apiBase = process.env.REACT_APP_API_BASE || 'https://convodb1.onrender.com';
 const backendUrl = process.env.REACT_APP_BACKEND_URL || 'https://convodb1.onrender.com';
 
-// Axios instance with interceptors
+// Axios instance
 const api = axios.create({
   baseURL: apiBase,
   withCredentials: true,
 });
-
-// Handle token expiration
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    if (error.response?.status === 401 && error.response?.data?.message === 'Invalid token') {
-      localStorage.removeItem('token');
-      localStorage.removeItem('username');
-      window.location.reload();
-    }
-    return Promise.reject(error);
-  }
-);
 
 // Socket.IO connection
 const socket = io(backendUrl, {
@@ -88,7 +75,7 @@ const retry = async (fn, retries = 3, delay = 1000) => {
 
 // Sidebar Component
 const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRecipient, loadChatHistory, unreadMessages, userDPs, isSidebarOpen, toggleSidebar, onlineUsers, showContactPicModal, isSearching }) => {
-  const clearSearch = useCallback(() => setSearchTerm(''), []);
+  const clearSearch = useCallback(() => setSearchTerm(''), []); // Memoized
 
   return (
     <div className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
@@ -224,7 +211,7 @@ const ChatHeader = ({ recipient, userDPs, setIsSettingsOpen, toggleSidebar, onli
 const UserProfile = ({ username, profilePic, setView }) => {
   return (
     <div className="user-profile">
-      <IoChevronBack className="close-button" onClick={() => setView('')} aria-label="Back to chat" />
+      <IoChevronBack className="close-button" onClick={() => setView('chat')} aria-label="Back to chat" />
       <div className="profile-info">
         <img
           src={profilePic ? `${backendUrl}/Uploads/${profilePic}` : `https://placehold.co/120?text=${username.charAt(0)}`}
@@ -507,45 +494,37 @@ function App() {
       return;
     }
 
-    const initializeAuth = async () => {
-      if (tokenParam && usernameParam) {
-        const decodedUsername = decodeURIComponent(usernameParam).toLowerCase();
-        localStorage.setItem('token', tokenParam);
-        localStorage.setItem('username', decodedUsername);
-        api.defaults.headers.common['Authorization'] = `Bearer ${tokenParam}`;
-        setIsAuthenticated(true);
-        setUsername(decodedUsername);
-        socket.emit('registerUser', decodedUsername);
-        await fetchUsers();
-        await fetchUnreadMessages(decodedUsername);
-        try {
-          const response = await api.get(`/api/users/profile-pic/${decodedUsername}`);
-          setProfilePic(response.data.profilePic);
-        } catch (err) {
-          console.error('Failed to fetch profile pic:', err.message);
-        }
-        setView('chat');
-        window.history.replaceState({}, document.title, '/');
-      } else if (token && storedUsername) {
-        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        setIsAuthenticated(true);
-        setUsername(storedUsername.toLowerCase());
-        socket.emit('registerUser', storedUsername.toLowerCase());
-        await fetchUsers();
-        await fetchUnreadMessages(storedUsername.toLowerCase());
-        try {
-          const response = await api.get(`/api/users/profile-pic/${storedUsername.toLowerCase()}`);
-          setProfilePic(response.data.profilePic);
-        } catch (err) {
-          console.error('Failed to fetch profile pic:', err.message);
-        }
-        setView('chat');
-      } else {
-        setView('login');
-      }
-    };
-
-    initializeAuth();
+    if (tokenParam && usernameParam) {
+      const decodedUsername = decodeURIComponent(usernameParam).toLowerCase();
+      localStorage.setItem('token', tokenParam);
+      localStorage.setItem('username', decodedUsername);
+      api.defaults.headers.common['Authorization'] = `Bearer ${tokenParam}`;
+      setIsAuthenticated(true);
+      setUsername(decodedUsername);
+      socket.emit('registerUser', decodedUsername);
+      fetchUsers();
+      fetchUnreadMessages(decodedUsername);
+      api
+        .get(`/api/users/profile-pic/${decodedUsername}`)
+        .then((response) => setProfilePic(response.data.profilePic))
+        .catch((err) => console.error('Failed to fetch profile pic:', err.message));
+      setView('chat');
+      window.history.replaceState({}, document.title, '/');
+    } else if (token && storedUsername) {
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      setIsAuthenticated(true);
+      setUsername(storedUsername.toLowerCase());
+      socket.emit('registerUser', storedUsername.toLowerCase());
+      fetchUsers();
+      fetchUnreadMessages(storedUsername.toLowerCase());
+      api
+        .get(`/api/users/profile-pic/${storedUsername.toLowerCase()}`)
+        .then((response) => setProfilePic(response.data.profilePic))
+        .catch((err) => console.error('Failed to fetch profile pic:', err.message));
+      setView('chat');
+    } else {
+      setView('login');
+    }
   }, []);
 
   // Initialize sidebar visibility
@@ -785,8 +764,8 @@ function App() {
       setUsername(response.data.username.toLowerCase());
       setView('chat');
       socket.emit('registerUser', response.data.username.toLowerCase());
-      await fetchUsers();
-      await fetchUnreadMessages(response.data.username.toLowerCase());
+      fetchUsers();
+      fetchUnreadMessages(response.data.username.toLowerCase());
       setEmail('');
       setPassword('');
       setError('');
@@ -801,7 +780,7 @@ function App() {
   const sendMessage = useCallback(async () => {
     if (!message.trim() || !isAuthenticated || !recipient || isUploading) return;
     try {
-      const messageId = Date.now().toString();
+      const messageId = Date.now().toString(); // Temporary ID for deduplication
       const timestamp = new Date().toISOString();
       const tempMessage = {
         messageId,
@@ -811,7 +790,7 @@ function App() {
         type: 'text',
         timestamp,
       };
-      setMessages((prev) => [...prev, tempMessage]);
+      setMessages((prev) => [...prev, tempMessage]); // Optimistic update
       const response = await api.post('/api/messages/sendText', {
         sender: username.toLowerCase(),
         recipient: recipient.toLowerCase(),
@@ -846,7 +825,7 @@ function App() {
       console.error('Send message error:', error.message);
       setError('Failed to send message');
       setTimeout(() => setError(''), 5000);
-      setMessages((prev) => prev.filter((m) => m.messageId !== Date.now().toString()));
+      setMessages((prev) => prev.filter((m) => m.messageId !== Date.now().toString())); // Rollback on error
     }
   }, [message, isAuthenticated, recipient, isUploading, username, fetchUnreadMessages]);
 
@@ -1155,7 +1134,7 @@ function App() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Email"
-                  className="input-field"
+                  className="signup-input"
                   required
                   aria-label="Email"
                 />
@@ -1164,7 +1143,7 @@ function App() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Password"
-                  className="input-field"
+                  className="signup-input"
                   required
                   autoComplete="current-password"
                   aria-label="Password"
@@ -1178,7 +1157,7 @@ function App() {
                     Sign Up
                   </a>
                 </p>
-                <div className="or">or</div>
+                <div className="or">OR</div>
                 <button type="button" className="google-btn" onClick={handleGoogleLogin}>
                   Sign In with Google
                 </button>
@@ -1190,7 +1169,7 @@ function App() {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="Username"
-                  className="input-field"
+                  className="signup-input"
                   required
                   aria-label="Username"
                 />
@@ -1199,7 +1178,7 @@ function App() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Email"
-                  className="input-field"
+                  className="signup-input"
                   required
                   aria-label="Email"
                 />
@@ -1208,7 +1187,7 @@ function App() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Password"
-                  className="input-field"
+                  className="signup-input"
                   required
                   autoComplete="new-password"
                   aria-label="Password"
@@ -1222,7 +1201,7 @@ function App() {
                     Sign In
                   </a>
                 </p>
-                <div className="or">or</div>
+                <div className="or">OR</div>
                 <button type="button" className="google-btn" onClick={handleGoogleLogin}>
                   Sign Up with Google
                 </button>
@@ -1231,7 +1210,7 @@ function App() {
           </div>
           <div className="branding">
             <div className="chat-icon"></div>
-            <h1>GConvo</h1>
+            <h1>CONVO</h1>
             <p>where connection comes to life</p>
           </div>
         </div>
