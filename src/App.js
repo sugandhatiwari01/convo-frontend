@@ -682,36 +682,38 @@ function App() {
   };
 
   // Register user
-  const handleRegister = async (e) => {
-    e.preventDefault();
-    if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
-      setError('Username must be 3-20 characters (letters, numbers, underscores)');
-      setTimeout(() => setError(''), 5000);
-      return;
-    }
-    if (!/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(email)) {
-      setError('Invalid email format');
-      setTimeout(() => setError(''), 5000);
-      return;
-    }
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
-      setTimeout(() => setError(''), 5000);
-      return;
-    }
-    try {
-      await api.post('/api/users/register', { email, username: username.toLowerCase(), password });
-      setView('login');
-      setError('');
-      setEmail('');
-      setUsername('');
-      setPassword('');
-    } catch (error) {
-      console.error('Registration error:', error.message);
-      setError(error.response?.data?.message || 'Registration failed');
-      setTimeout(() => setError(''), 5000);
-    }
-  };
+// In App.js, around line 703
+const handleRegister = async (e) => {
+  e.preventDefault();
+  if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
+    setError('Username must be 3-20 characters (letters, numbers, underscores)');
+    setTimeout(() => setError(''), 5000);
+    return;
+  }
+  if (!/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(email)) {
+    setError('Invalid email format');
+    setTimeout(() => setError(''), 5000);
+    return;
+  }
+  if (password.length < 6) {
+    setError('Password must be at least 6 characters');
+    setTimeout(() => setError(''), 5000);
+    return;
+  }
+  try {
+    console.log('Sending registration request to:', `${apiBase}/users/register`); // Debug log
+    await api.post('/users/register', { email, username: username.toLowerCase(), password });
+    setView('login');
+    setError('');
+    setEmail('');
+    setUsername('');
+    setPassword('');
+  } catch (error) {
+    console.error('Registration error:', error.message, error.response?.data);
+    setError(error.response?.data?.message || 'Registration failed');
+    setTimeout(() => setError(''), 5000);
+  }
+};
 
   // Login user
   const handleLogin = async (e) => {
