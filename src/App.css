@@ -212,10 +212,47 @@ body {
 
 @media (max-width: 768px) {
   .sidebar {
-    transform: translateX(-100%);
+    width: 70vw; /* Proportional width (70% of viewport) instead of fixed 280px */
+    transform: translateX(-100%); /* Hidden by default */
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.2); /* Add shadow for depth when open */
   }
+
   .sidebar.open {
-    transform: translateX(0);
+    transform: translateX(0); /* Slide in when open */
+  }
+
+  .main-chat {
+    margin-left: 60px;
+    width: calc(100% - 60px);
+    transition: margin-left 0.3s ease, width 0.3s ease;
+  }
+
+  /* Adjust main-chat when sidebar is open */
+  .main-chat.sidebar-open {
+    margin-left: calc(60px + 70vw); /* Adjust margin to accommodate sidebar */
+    width: calc(100% - 60px - 70vw); /* Reduce width proportionally */
+  }
+
+  .sidebar-toggle {
+    display: block; /* Ensure toggle button is visible */
+    position: fixed; /* Keep it fixed for easy access */
+    top: 1rem;
+    left: 70px; /* Position just after sidebar-icons */
+    z-index: 1100; /* Ensure it’s above other elements */
+  }
+
+  /* Adjust search input for better mobile usability */
+  .search-input {
+    padding: 0.5rem 2rem; /* Reduce padding slightly for smaller screens */
+    font-size: 0.875rem; /* Slightly smaller font for proportionality */
+  }
+
+  .search-icon {
+    font-size: 1rem; /* Adjust icon size */
+  }
+
+  .clear-search {
+    font-size: 0.875rem; /* Adjust clear button size */
   }
 }
 
@@ -236,20 +273,27 @@ body {
   font-size: clamp(1.25rem, 5vw, 1.5rem);
 }
 
+/* Sidebar toggle button - Make it more prominent */
 .sidebar-toggle {
-  background: none;
+  background: var(--button-bg); /* Add background for visibility */
   border: none;
-  color: var(--text-primary);
+  color: var(--sidebar-icons-text); /* Use a contrasting color */
   cursor: pointer;
   font-size: 1.5rem;
   display: none;
-  transition: color 0.2s ease;
+  transition: background 0.2s ease, transform 0.2s ease;
+  border-radius: 50%; /* Make it circular */
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .sidebar-toggle:hover {
-  color: var(--button-hover);
+  background: var(--button-hover);
+  transform: scale(1.1); /* Add a slight scale effect on hover */
 }
-
 .search-input-container {
   position: relative;
 }
@@ -388,7 +432,7 @@ body {
   background: var(--chat-bg);
   position: relative;
   z-index: 900;
-  transition: margin-left 0.3s ease;
+  transition: margin-left 0.3s ease, width 0.3s ease; /* Add width transition */
 }
 
 .chat-header {
@@ -1095,6 +1139,29 @@ body {
   .modal-profile-pic {
     max-width: 250px;
   }
+  @media (max-width: 480px) {
+  .sidebar {
+    width: 80vw; /* Slightly larger proportion for very small screens */
+  }
+
+  .main-chat.sidebar-open {
+    margin-left: calc(60px + 80vw); /* Adjust for new sidebar width */
+    width: calc(100% - 60px - 80vw);
+  }
+
+  .sidebar-header {
+    padding: 0.5rem;
+  }
+
+  .search-input {
+    padding: 0.5rem 1.5rem; /* Further reduce padding */
+    font-size: 0.75rem; /* Smaller font for very small screens */
+  }
+
+  .search-icon, .clear-search {
+    font-size: 0.75rem; /* Adjust icon sizes */
+  }
+}
 }
 
 @media (max-width: 768px) and (orientation: landscape) {
