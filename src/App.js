@@ -3,9 +3,34 @@ import io from 'socket.io-client';
 import axios from 'axios';
 import './App.css';
 import { IoSearchOutline, IoSettingsOutline, IoSendSharp, IoAttachOutline, IoChevronBack, IoMenu } from 'react-icons/io5';
-import { BsChatLeft, BsInfoCircle } from 'react-icons/bs';
+import { BsChat, BsInfoCircle } from 'react-icons/bs';
 import { FiUser } from 'react-icons/fi';
 import { FaSpinner } from 'react-icons/fa';
+
+// Error Boundary Component
+class ErrorBoundary extends React.Component {
+  state = { hasError: false, error: null };
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('ErrorBoundary caught:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="error-container">
+          <h1>Something went wrong</h1>
+          <p>{this.state.error?.message || 'Please try refreshing the page.'}</p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 // API and backend URLs
 const apiBase = process.env.REACT_APP_API_BASE || 'https://convodb1.onrender.com/api';
@@ -472,6 +497,8 @@ function App() {
         .then((response) => setProfilePic(response.data.profilePic))
         .catch((err) => console.error('Failed to fetch profile pic:', err.message));
       setView('chat');
+    } else {
+      setView('login');
     }
   }, []);
 
@@ -502,48 +529,50 @@ function App() {
   }, [username]);
 
   // Fetch users with optimized search
- const fetchUsers = useCallback(
-  async (query = '') => {
-    if (!username || !isAuthenticated) return;
-    setIsSearching(true);
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) throw new Error('No authentication token');
-      const response = await retry(() =>
-        api.get('/users/search', {
-          params: { query: query.toLowerCase(), currentUser: username.toLowerCase() },
-          headers: { Authorization: `Bearer ${token}` },
-        })
-      );
-      let uniqueUsers = [...new Set(response.data)].filter(
-        (u) => u.toLowerCase() !== username.toLowerCase()
-      );
-      if (!query) {
-        const recentUsers = uniqueUsers.filter((u) => contactedUsernames.includes(u));
-        const otherUsers = uniqueUsers.filter((u) => !contactedUsernames.includes(u));
-        uniqueUsers = [...recentUsers, ...otherUsers];
+  const fetchUsers = useCallback(
+    async (query = '') => {
+      if (!username || !isAuthenticated) return;
+      setIsSearching(true);
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) throw new Error('No authentication token');
+        const response = await retry(() =>
+          api.get('/users/search', {
+            params: { query: query.toLowerCase(), currentUser: username.toLowerCase() },
+            headers: { Authorization: `Bearer ${token}` },
+          })
+        );
+        let uniqueUsers = [...new Set(response.data)].filter(
+          (u) => u.toLowerCase() !== username.toLowerCase()
+        );
+        if (!query) {
+          const recentUsers = uniqueUsers.filter((u) => contactedUsernames.includes(u));
+          const otherUsers = uniqueUsers.filter((u) => !contactedUsernames.includes(u));
+          uniqueUsers = [...recentUsers, ...otherUsers];
+        }
+        setUsers(uniqueUsers);
+        const dpPromises = uniqueUsers.map((user) =>
+          api
+            .get(`/user/profile-pic/${user}`, { headers: { Authorization: `Bearer ${token}` } })
+            .then((res) => ({ user, profilePic: res.data.profilePic }))
+            .catch(() => ({ user, profilePic: null }))
+        );
+        const dps = await Promise.all(dpPromises);
+        setUserDPs(Object.fromEntries(dps.map(({ user, profilePic }) => [user, profilePic])));
+      } catch (error) {
+        console.error('Fetch users error:', error.message);
+        setError('Failed to load contacts');
+        setTimeout(() => setError(''), 5000);
+        setUsers([...contactedUsernames].filter((u) => u.toLowerCase() !== username.toLowerCase()));
+      } finally {
+        setIsSearching(false);
       }
-      setUsers(uniqueUsers);
-      const dpPromises = uniqueUsers.map((user) =>
-        api
-          .get(`/user/profile-pic/${user}`, { headers: { Authorization: `Bearer ${token}` } })
-          .then((res) => ({ user, profilePic: res.data.profilePic }))
-          .catch(() => ({ user, profilePic: null }))
-      );
-      const dps = await Promise.all(dpPromises);
-      setUserDPs(Object.fromEntries(dps.map(({ user, profilePic }) => [user, profilePic])));
-    } catch (error) {
-      console.error('Fetch users error:', error.message);
-      setError('Failed to load contacts');
-      setTimeout(() => setError(''), 5000);
-      setUsers([...contactedUsernames].filter((u) => u.toLowerCase() !== username.toLowerCase()));
-    } finally {
-      setIsSearching(false);
-    }
-  },
-  [username, isAuthenticated, contactedUsernames]
-);
-  
+    },
+    [username, isAuthenticated, contactedUsernames]
+  );
+
+  // Debounced fetch users
+  const debouncedFetchUsers = useCallback(debounce(fetchUsers, 300), [fetchUsers]);
 
   // Search effect
   useEffect(() => {
@@ -552,7 +581,7 @@ function App() {
     } else {
       debouncedFetchUsers(searchTerm);
     }
-  }, [searchTerm, contactedUsernames, debouncedFetchUsers, fetchUsers]);
+  }, [searchTerm, fetchUsers]);
 
   // Memoized user list
   const filteredUsers = useMemo(() => {
@@ -672,28 +701,29 @@ function App() {
   };
 
   // Login user
-const handleLogin = async (e) => {
-  e.preventDefault();
-  try {
-    const response = await api.post('/api/users/login', { email, password });
-    localStorage.setItem('token', response.data.token);
-    localStorage.setItem('username', response.data.username);
-    api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
-    setIsAuthenticated(true);
-    setUsername(response.data.username);
-    setView('chat'); // Fix: Set to 'chat' instead of '!'
-    socket.emit('registerUser', response.data.username);
-    fetchUsers();
-    fetchUnreadMessages();
-    setError('');
-    setEmail('');
-    setPassword('');
-  } catch (error) {
-    console.error('Login error:', error.message);
-    setError(error.response?.data?.message || 'Login failed');
-    setTimeout(() => setError(''), 5000);
-  }
-};
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await api.post('/api/users/login', { email, password });
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('username', response.data.username);
+      api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
+      setIsAuthenticated(true);
+      setUsername(response.data.username);
+      setView('chat');
+      socket.emit('registerUser', response.data.username);
+      fetchUsers();
+      fetchUnreadMessages();
+      setError('');
+      setEmail('');
+      setPassword('');
+    } catch (error) {
+      console.error('Login error:', error.message);
+      setError(error.response?.data?.message || 'Login failed');
+      setTimeout(() => setError(''), 5000);
+    }
+  };
+
   // Send text message
   const sendMessage = async () => {
     if (!message.trim() || !isAuthenticated || !recipient || isUploading) return;
@@ -805,15 +835,15 @@ const handleLogin = async (e) => {
   };
 
   // Handle typing
-const handleTyping = (e) => {
-  const value = e.target.value; // Get input value
-  setMessage(value); // Update state with string
-  if (recipient && value) {
-    socket.emit('typing', { recipient, username });
-  } else {
-    socket.emit('stopTyping', { recipient });
-  }
-};
+  const handleTyping = (e) => {
+    const value = e.target.value;
+    setMessage(value);
+    if (recipient && value) {
+      socket.emit('typing', { recipient, username });
+    } else {
+      socket.emit('stopTyping', { recipient });
+    }
+  };
 
   // Handle reactions
   const handleReaction = (messageId, emoji) => {
@@ -873,16 +903,6 @@ const handleTyping = (e) => {
     socket.disconnect();
   };
 
-  // Debounced fetch users
-const debouncedFetchUsers = useCallback(debounce(fetchUsers, 300), [fetchUsers]);
-
-useEffect(() => {
-  if (!searchTerm) {
-    fetchUsers();
-  } else {
-    debouncedFetchUsers(searchTerm);
-  }
-}, [searchTerm, fetchUsers, debouncedFetchUsers]);
   // Scroll to bottom
   useEffect(() => {
     if (messageBoxRef.current) {
@@ -903,212 +923,212 @@ useEffect(() => {
   const showProfile = () => setView('profile');
   const showInfo = () => setView('info');
 
-  if (!isAuthenticated) {
-    return (
-      <div className="auth-container">
-        <div className="auth-box">
-          <h1>{view === 'login' ? 'Sign In' : 'Sign Up'}</h1>
-          <div className="auth-nav">
-            <button className={`nav-link ${view === 'login' ? 'active' : ''}`} onClick={() => setView('login')}>
-              Sign In
-            </button>
-            <button className={`nav-link ${view === 'register' ? 'active' : ''}`} onClick={() => setView('register')}>
-              Sign Up
-            </button>
-          </div>
-          {error && <p className="error">{error}</p>}
-          {view === 'login' ? (
-            <form onSubmit={handleLogin}>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Email"
-                className="auth-input"
-                required
-              />
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Password"
-                className="auth-input"
-                required
-                autoComplete="current-password"
-              />
-              <button type="submit" className="auth-button">
-                Sign In
-              </button>
-              <p className="auth-link">
-                Don't have an account?{' '}
-                <a href="#" onClick={() => setView('register')}>
-                  Sign Up
-                </a>
-              </p>
-              <div className="or">OR</div>
-              <button type="button" className="google-button" onClick={handleGoogleLogin}>
-                Sign In with Google
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={handleRegister}>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Username"
-                className="auth-input"
-                required
-              />
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Email"
-                className="auth-input"
-                required
-              />
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Password"
-                className="auth-input"
-                required
-                autoComplete="new-password"
-              />
-              <button type="submit" className="auth-button">
-                Sign Up
-              </button>
-              <p className="auth-link">
-                Already have an account?{' '}
-                <a href="#" onClick={() => setView('login')}>
-                  Sign In
-                </a>
-              </p>
-              <div className="or">OR</div>
-              <button type="button" className="google-button" onClick={handleGoogleLogin}>
-                Sign Up with Google
-              </button>
-            </form>
-          )}
-        </div>
-        <div className="branding">
-          <div className="chat-icon"></div>
-          <h1>CONVO</h1>
-          <p>where connection comes to life</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="chat-container">
-      {view === 'profile' && <UserProfile username={username} profilePic={profilePic} setView={setView} />}
-      {view === 'info' && <InfoPage setView={setView} />}
-      {isProfilePicModalOpen && (
-        <ProfilePicModal profilePic={profilePic} username={username} onClose={closeProfilePicModal} />
-      )}
-      {contactModal.isOpen && (
-        <ProfilePicModal
-          profilePic={contactModal.profilePic}
-          username={contactModal.username}
-          onClose={closeContactModal}
-        />
-      )}
-      <div className="sidebar-icons">
-        <div className="icon" onClick={() => { setView('chat'); setRecipient(''); setMessages([]); }}>
-          <BsChatLeft size={24} />
-        </div>
-        <div className="icon" onClick={showProfile}>
-          <FiUser size={24} />
-        </div>
-        <div className="icon" onClick={showInfo}>
-          <BsInfoCircle size={24} />
-        </div>
-        <img
-          src={profilePic ? `${backendUrl}/Uploads/${profilePic}` : `https://placehold.co/40?text=${username.charAt(0)}`}
-          alt={username}
-          className="avatar"
-        />
-      </div>
-      <Sidebar
-        username={username}
-        users={filteredUsers}
-        searchTerm={searchTerm}
-        setSearchTerm={setSearchTerm}
-        recipient={recipient}
-        setRecipient={setRecipient}
-        loadChatHistory={loadChatHistory}
-        unreadMessages={unreadMessages}
-        userDPs={userDPs}
-        isSidebarOpen={isSidebarOpen}
-        toggleSidebar={setIsSidebarOpen}
-        onlineUsers={onlineUsers}
-        showContactPicModal={showContactPicModal}
-        isSearching={isSearching}
-      />
-      {view === 'chat' && (
-        <div className="main-chat">
-          <ChatHeader
-            recipient={recipient}
-            userDPs={userDPs}
-            setIsSettingsOpen={setIsSettingsOpen}
-            toggleSidebar={setIsSidebarOpen}
-            onlineUsers={onlineUsers}
-          />
-          <div className="message-box" ref={messageBoxRef}>
-            {!recipient ? (
-              <p className="empty-convo">
-                Convo
-                <br />
-                where connection comes to life
-              </p>
-            ) : messages.length === 0 ? (
-              <p className="empty-convo">No messages yet. Start the conversation!</p>
-            ) : (
-              messages.map((msg, index) => (
-                <Message
-                  key={msg.messageId || `message-${index}`}
-                  msg={msg}
-                  username={username}
-                  toggleReactionPicker={toggleReactionPicker}
-                  reactionPicker={reactionPicker}
-                  handleReaction={handleReaction}
-                  showReactions={showReactions}
-                  reactions={reactions}
-                />
-              ))
-            )}
-            {typing && recipient && <p className="typing-indicator">{typing} is typing...</p>}
-          </div>
-          {recipient && (
-            <MessageInput
-              message={message}
-              handleTyping={handleTyping}
-              sendMessage={sendMessage}
-              fileInputRef={fileInputRef}
-              sendFile={sendFile}
-              isUploading={isUploading}
+    <ErrorBoundary>
+      {isAuthenticated ? (
+        <div className="chat-container">
+          {view === 'profile' && <UserProfile username={username} profilePic={profilePic} setView={setView} />}
+          {view === 'info' && <InfoPage setView={setView} />}
+          {isProfilePicModalOpen && (
+            <ProfilePicModal profilePic={profilePic} username={username} onClose={closeProfilePicModal} />
+          )}
+          {contactModal.isOpen && (
+            <ProfilePicModal
+              profilePic={contactModal.profilePic}
+              username={contactModal.username}
+              onClose={closeContactModal}
             />
           )}
+          <div className="sidebar-icons">
+            <div className="icon" onClick={() => { setView('chat'); setRecipient(''); setMessages([]); }}>
+              <BsChat size={24} />
+            </div>
+            <div className="icon" onClick={showProfile}>
+              <FiUser size={24} />
+            </div>
+            <div className="icon" onClick={showInfo}>
+              <BsInfoCircle size={24} />
+            </div>
+            <img
+              src={profilePic ? `${backendUrl}/Uploads/${profilePic}` : `https://placehold.co/40?text=${username.charAt(0)}`}
+              alt={username}
+              className="avatar"
+            />
+          </div>
+          <Sidebar
+            username={username}
+            users={filteredUsers}
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            recipient={recipient}
+            setRecipient={setRecipient}
+            loadChatHistory={loadChatHistory}
+            unreadMessages={unreadMessages}
+            userDPs={userDPs}
+            isSidebarOpen={isSidebarOpen}
+            toggleSidebar={setIsSidebarOpen}
+            onlineUsers={onlineUsers}
+            showContactPicModal={showContactPicModal}
+            isSearching={isSearching}
+          />
+          {view === 'chat' && (
+            <div className="main-chat">
+              <ChatHeader
+                recipient={recipient}
+                userDPs={userDPs}
+                setIsSettingsOpen={setIsSettingsOpen}
+                toggleSidebar={setIsSidebarOpen}
+                onlineUsers={onlineUsers}
+              />
+              <div className="message-box" ref={messageBoxRef}>
+                {!recipient ? (
+                  <p className="empty-convo">
+                    Convo
+                    <br />
+                    where connection comes to life
+                  </p>
+                ) : messages.length === 0 ? (
+                  <p className="empty-convo">No messages yet. Start the conversation!</p>
+                ) : (
+                  messages.map((msg, index) => (
+                    <Message
+                      key={msg.messageId || `message-${index}`}
+                      msg={msg}
+                      username={username}
+                      toggleReactionPicker={toggleReactionPicker}
+                      reactionPicker={reactionPicker}
+                      handleReaction={handleReaction}
+                      showReactions={showReactions}
+                      reactions={reactions}
+                    />
+                  ))
+                )}
+                {typing && recipient && <p className="typing-indicator">{typing} is typing...</p>}
+              </div>
+              {recipient && (
+                <MessageInput
+                  message={message}
+                  handleTyping={handleTyping}
+                  sendMessage={sendMessage}
+                  fileInputRef={fileInputRef}
+                  sendFile={sendFile}
+                  isUploading={isUploading}
+                />
+              )}
+            </div>
+          )}
+          <SettingsSidebar
+            isSettingsOpen={isSettingsOpen}
+            setIsSettingsOpen={setIsSettingsOpen}
+            username={username}
+            profilePic={profilePic}
+            handleLogout={handleLogout}
+            updateProfilePic={updateProfilePic}
+            profilePicInputRef={profilePicInputRef}
+            showProfilePicModal={showProfilePicModal}
+            theme={theme}
+            toggleTheme={toggleTheme}
+            showReactions={showReactions}
+            setShowReactions={setShowReactions}
+          />
+        </div>
+      ) : (
+        <div className="auth-container">
+          <div className="auth-box">
+            <h1>{view === 'login' ? 'Sign In' : 'Sign Up'}</h1>
+            <div className="auth-nav">
+              <button className={`nav-link ${view === 'login' ? 'active' : ''}`} onClick={() => setView('login')}>
+                Sign In
+              </button>
+              <button className={`nav-link ${view === 'register' ? 'active' : ''}`} onClick={() => setView('register')}>
+                Sign Up
+              </button>
+            </div>
+            {error && <p className="error">{error}</p>}
+            {view === 'login' ? (
+              <form onSubmit={handleLogin}>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Email"
+                  className="auth-input"
+                  required
+                />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Password"
+                  className="auth-input"
+                  required
+                  autoComplete="current-password"
+                />
+                <button type="submit" className="auth-button">
+                  Sign In
+                </button>
+                <p className="auth-link">
+                  Don't have an account?{' '}
+                  <a href="#" onClick={() => setView('register')}>
+                    Sign Up
+                  </a>
+                </p>
+                <div className="or">OR</div>
+                <button type="button" className="google-button" onClick={handleGoogleLogin}>
+                  Sign In with Google
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleRegister}>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Username"
+                  className="auth-input"
+                  required
+                />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Email"
+                  className="auth-input"
+                  required
+                />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Password"
+                  className="auth-input"
+                  required
+                  autoComplete="new-password"
+                />
+                <button type="submit" className="auth-button">
+                  Sign Up
+                </button>
+                <p className="auth-link">
+                  Already have an account?{' '}
+                  <a href="#" onClick={() => setView('login')}>
+                    Sign In
+                  </a>
+                </p>
+                <div className="or">OR</div>
+                <button type="button" className="google-button" onClick={handleGoogleLogin}>
+                  Sign Up with Google
+                </button>
+              </form>
+            )}
+          </div>
+          <div className="branding">
+            <div className="chat-icon"></div>
+            <h1>CONVO</h1>
+            <p>where connection comes to life</p>
+          </div>
         </div>
       )}
-      <SettingsSidebar
-        isSettingsOpen={isSettingsOpen}
-        setIsSettingsOpen={setIsSettingsOpen}
-        username={username}
-        profilePic={profilePic}
-        handleLogout={handleLogout}
-        updateProfilePic={updateProfilePic}
-        profilePicInputRef={profilePicInputRef}
-        showProfilePicModal={showProfilePicModal}
-        theme={theme}
-        toggleTheme={toggleTheme}
-        showReactions={showReactions}
-        setShowReactions={setShowReactions}
-      />
-    </div>
+    </ErrorBoundary>
   );
 }
 
