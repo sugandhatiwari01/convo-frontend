@@ -505,7 +505,7 @@ function App() {
       fetchUsers();
       fetchUnreadMessages(decodedUsername);
       api
-        .get(`/api/users/profile-pic/${decodedUsername}`)
+        .get(`/users/profile-pic/${decodedUsername}`)
         .then((response) => setProfilePic(response.data.profilePic))
         .catch((err) => console.error('Failed to fetch profile pic:', err.message));
       setView('chat');
@@ -518,7 +518,7 @@ function App() {
       fetchUsers();
       fetchUnreadMessages(storedUsername.toLowerCase());
       api
-        .get(`/api/users/profile-pic/${storedUsername.toLowerCase()}`)
+        .get(`/users/profile-pic/${storedUsername.toLowerCase()}`)
         .then((response) => setProfilePic(response.data.profilePic))
         .catch((err) => console.error('Failed to fetch profile pic:', err.message));
       setView('chat');
@@ -545,7 +545,7 @@ function App() {
   const fetchUnreadMessages = useCallback(async (user) => {
     if (!user) return;
     try {
-      const response = await retry(() => api.get(`/api/messages/unread/${user.toLowerCase()}`));
+      const response = await retry(() => api.get(`/messages/unread/${user.toLowerCase()}`));
       setUnreadMessages(response.data);
     } catch (error) {
       console.error('Unread messages error:', error.message);
@@ -562,7 +562,7 @@ function App() {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No authentication token');
       const response = await retry(() =>
-        api.get('/api/users/search', {
+        api.get('/users/search', {
           params: { query: query.toLowerCase(), currentUser: username.toLowerCase() },
           headers: { Authorization: `Bearer ${token}` },
         })
@@ -578,7 +578,7 @@ function App() {
       setUsers(uniqueUsers);
       const dpPromises = uniqueUsers.map((user) =>
         api
-          .get(`/api/users/profile-pic/${user}`, { headers: { Authorization: `Bearer ${token}` } })
+          .get(`/users/profile-pic/${user}`, { headers: { Authorization: `Bearer ${token}` } })
           .then((res) => ({ user, profilePic: res.data.profilePic }))
           .catch(() => ({ user, profilePic: null }))
       );
@@ -636,7 +636,7 @@ function App() {
       });
       if (msg.sender.toLowerCase() === recipient.toLowerCase()) {
         setUnreadMessages((prev) => ({ ...prev, [msg.sender.toLowerCase()]: 0 }));
-        api.post(`/api/messages/mark-read/${username.toLowerCase()}/${msg.sender.toLowerCase()}`)
+        api.post(`/messages/mark-read/${username.toLowerCase()}/${msg.sender.toLowerCase()}`)
           .catch((err) => console.error('Failed to mark messages read:', err.message));
       } else {
         setUnreadMessages((prev) => ({
@@ -687,7 +687,7 @@ function App() {
     }
     try {
       const response = await retry(() =>
-        api.get(`/api/messages/${currentUser.toLowerCase()}/${selectedRecipient.toLowerCase()}`)
+        api.get(`/messages/${currentUser.toLowerCase()}/${selectedRecipient.toLowerCase()}`)
       );
       setMessages(response.data.map((msg) => ({
         messageId: msg.messageId,
@@ -704,7 +704,7 @@ function App() {
           : [...prev, selectedRecipient.toLowerCase()]
       );
       await retry(() =>
-        api.post(`/api/messages/mark-read/${currentUser.toLowerCase()}/${selectedRecipient.toLowerCase()}`)
+        api.post(`/messages/mark-read/${currentUser.toLowerCase()}/${selectedRecipient.toLowerCase()}`)
       );
     } catch (error) {
       console.error('Failed to fetch chat history:', error.message);
@@ -807,7 +807,7 @@ function App() {
         timestamp,
       };
       setMessages((prev) => [...prev, tempMessage]); // Optimistic update
-      const response = await api.post('/api/messages/sendText', {
+      const response = await api.post('/messages/sendText', {
         sender: username.toLowerCase(),
         recipient: recipient.toLowerCase(),
         text: message,
@@ -867,7 +867,7 @@ function App() {
       formData.append('recipient', recipient.toLowerCase());
       formData.append('username', username.toLowerCase());
       formData.append('timestamp', new Date().toISOString());
-      const response = await api.post('/api/messages/uploadFile', formData, {
+      const response = await api.post('/messages/uploadFile', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       const msg = response.data;
@@ -908,7 +908,7 @@ function App() {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('username', username.toLowerCase());
-      const response = await api.post('/api/users/uploadProfilePic', formData, {
+      const response = await api.post('/users/uploadProfilePic', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setProfilePic(response.data.filename);
