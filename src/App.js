@@ -39,7 +39,7 @@ const backendUrl = process.env.REACT_APP_BACKEND_URL || 'https://convodb1.onrend
 
 // Axios instance
 const api = axios.create({
-  baseURL: apiBase, // Correct base URL without /api
+  baseURL: apiBase,
   withCredentials: true,
 });
 
@@ -78,7 +78,7 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
   const clearSearch = useCallback(() => setSearchTerm(''), []);
 
   return (
-    <div className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
+    <div className={`sidebar ${isSidebarOpen ? 'open' : ''}`} onClick={(e) => e.stopPropagation()}>
       <div className="sidebar-header">
         <div className="header-top">
           <h1>Convo</h1>
@@ -92,6 +92,7 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
             placeholder={isSearching ? 'Searching...' : 'Search users (e.g., "s" or "su")...'}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
             className="search-input"
             aria-label="Search users"
           />
@@ -175,11 +176,15 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
 };
 
 // ChatHeader Component
-const ChatHeader = ({ recipient, userDPs, setIsSettingsOpen, toggleSidebar, onlineUsers }) => {
+const ChatHeader = ({ recipient, userDPs, setIsSettingsOpen, toggleSidebar, onlineUsers, isSidebarOpen }) => {
   return (
     <div className="chat-header">
       <div className="user-info">
-        <IoMenu className="menu-button" onClick={() => toggleSidebar(true)} aria-label="Open sidebar" />
+        <IoMenu
+          className="menu-button"
+          onClick={() => toggleSidebar(!isSidebarOpen)}
+          aria-label={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
+        />
         {recipient && (
           <>
             {userDPs[recipient] ? (
@@ -272,6 +277,7 @@ const SettingsSidebar = ({ isSettingsOpen, setIsSettingsOpen, username, profileP
           src={profilePic ? `${backendUrl}/Uploads/${profilePic}` : `https://placehold.co/120?text=${username.charAt(0)}`}
           alt={username}
           className="profile-pic-large"
+          onError={(e) => (e.target.src = `https://placehold.co/120?text=${username.charAt(0)}`)}
         />
         <span className="username-display">{username}</span>
         <input
@@ -533,6 +539,7 @@ function App() {
       setIsSidebarOpen(window.innerWidth > 768);
     };
     window.addEventListener('resize', handleResize);
+    handleResize();
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
@@ -796,7 +803,7 @@ function App() {
   const sendMessage = useCallback(async () => {
     if (!message.trim() || !isAuthenticated || !recipient || isUploading) return;
     try {
-      const messageId = Date.now().toString(); // Temporary ID for deduplication
+      const messageId = Date.now().toString();
       const timestamp = new Date().toISOString();
       const tempMessage = {
         messageId,
@@ -806,7 +813,7 @@ function App() {
         type: 'text',
         timestamp,
       };
-      setMessages((prev) => [...prev, tempMessage]); // Optimistic update
+      setMessages((prev) => [...prev, tempMessage]);
       const response = await api.post('/messages/sendText', {
         sender: username.toLowerCase(),
         recipient: recipient.toLowerCase(),
@@ -841,7 +848,7 @@ function App() {
       console.error('Send message error:', error.message);
       setError('Failed to send message');
       setTimeout(() => setError(''), 5000);
-      setMessages((prev) => prev.filter((m) => m.messageId !== Date.now().toString())); // Rollback on error
+      setMessages((prev) => prev.filter((m) => m.messageId !== Date.now().toString()));
     }
   }, [message, isAuthenticated, recipient, isUploading, username, fetchUnreadMessages]);
 
@@ -911,6 +918,7 @@ function App() {
       const response = await api.post('/users/uploadProfilePic', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
+      console.log('Profile pic upload response:', response.data);
       setProfilePic(response.data.filename);
       setUserDPs((prev) => ({
         ...prev,
@@ -1071,6 +1079,7 @@ function App() {
                 setIsSettingsOpen={setIsSettingsOpen}
                 toggleSidebar={setIsSidebarOpen}
                 onlineUsers={onlineUsers}
+                isSidebarOpen={isSidebarOpen}
               />
               <div className="message-box" ref={messageBoxRef}>
                 {!recipient ? (

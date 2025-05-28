@@ -210,66 +210,6 @@ body {
   transform: translateX(0);
 }
 
-@media (max-width: 768px) {
-  .sidebar {
-    width: 70vw;
-    transform: translateX(-100%); /* Hidden by default on mobile */
-    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.2);
-  }
-
-  .sidebar.open {
-    transform: translateX(0);
-  }
-
-  .main-chat {
-    margin-left: 60px;
-    width: calc(100% - 60px);
-    transition: margin-left 0.3s ease, width 0.3s ease;
-  }
-
-  /* Adjust main-chat when sidebar is open */
-  .main-chat.sidebar-open {
-    margin-left: calc(60px + 70vw); /* Adjust margin to accommodate sidebar */
-    width: calc(100% - 60px - 70vw); /* Reduce width proportionally */
-  }
-.sidebar.open {
-  transform: translateX(0);
-}
-
-.sidebar:not(.open) {
-  transform: translateX(-100%); /* Hide when not open */
-}
-  .sidebar-toggle {
-    display: block; /* Ensure toggle button is visible */
-    position: fixed; /* Keep it fixed for easy access */
-    top: 1rem;
-    padding-right: 50px; /* Position just after sidebar-icons */
-    z-index: 1100; /* Ensure it’s above other elements */
-  }
-@media (min-width: 769px) {
-  .sidebar-toggle {
-    display: none; /* Hidden by default on large screens since sidebar is open */
-  }
-
-  .sidebar.open .sidebar-toggle {
-    display: block; /* Show when sidebar is explicitly toggled open */
-  }
-}
-  /* Adjust search input for better mobile usability */
-  .search-input {
-    padding: 0.5rem 2rem; /* Reduce padding slightly for smaller screens */
-    font-size: 0.875rem; /* Slightly smaller font for proportionality */
-  }
-
-  .search-icon {
-    font-size: 1rem; /* Adjust icon size */
-  }
-
-  .clear-search {
-    font-size: 0.875rem; /* Adjust clear button size */
-  }
-}
-
 .sidebar-header {
   padding: 1rem;
   border-bottom: 1px solid var(--sidebar-border);
@@ -287,7 +227,7 @@ body {
   font-size: clamp(1.25rem, 5vw, 1.5rem);
 }
 
-/* Sidebar toggle button - Make it more prominent */
+/* Sidebar toggle button */
 .sidebar-toggle {
   background: var(--button-bg);
   border: none;
@@ -306,10 +246,16 @@ body {
 
 .sidebar-toggle:hover {
   background: var(--button-hover);
-  transform: scale(1.1); /* Add a slight scale effect on hover */
+  transform: scale(1.1);
 }
+
 .search-input-container {
   position: relative;
+  width: 100%;
+  z-index: 2;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
 }
 
 .search-input {
@@ -321,11 +267,13 @@ body {
   font-size: clamp(0.875rem, 3.5vw, 1rem);
   color: var(--input-text);
   transition: box-shadow 0.3s ease;
+  box-sizing: border-box;
 }
 
 .search-input:focus {
   outline: none;
   box-shadow: 0 0 0 2px var(--button-bg);
+  background: var(--input-bg);
 }
 
 .search-icon {
@@ -446,7 +394,7 @@ body {
   background: var(--chat-bg);
   position: relative;
   z-index: 900;
-  transition: margin-left 0.3s ease, width 0.3s ease; /* Add width transition */
+  transition: margin-left 0.3s ease, width 0.3s ease, margin-right 0.3s ease;
 }
 
 .chat-header {
@@ -820,6 +768,8 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
+  overflow-y: auto;
+  width: 100%;
 }
 
 .profile-pic-large {
@@ -828,6 +778,8 @@ body {
   border-radius: 50%;
   margin-bottom: 1rem;
   object-fit: cover;
+  display: block;
+  max-width: 100%;
 }
 
 .username-display {
@@ -1014,17 +966,14 @@ body {
   background: var(--button-hover);
 }
 
-.highlight {
-  background-color: #FFEB3B;
-  font-weight: bold;
+/* Theme toggle styles */
+.appearance-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
-/* Theme toggle */
 .theme-toggle {
-  margin-left: 0.5rem;
-}
-
-.theme-toggle-slider {
   width: 40px;
   height: 20px;
   background: var(--secondary-text);
@@ -1033,149 +982,122 @@ body {
   cursor: pointer;
 }
 
+.theme-toggle-slider {
+  width: 100%;
+  height: 100%;
+  border-radius: 10px;
+  position: relative;
+  transition: background 0.3s ease;
+}
+
 .theme-toggle-slider.checked {
   background: var(--text-primary);
 }
 
-.theme-toggle-slider::before {
-  content: '';
-  width: 16px;
-  height: 16px;
-  background: var(--sent-message-text);
-  border-radius: 50%;
+.theme-toggle-icon {
   position: absolute;
   top: 2px;
   left: 2px;
+  width: 16px;
+  height: 16px;
   transition: transform 0.3s ease;
 }
 
-.theme-toggle-slider.checked::before {
+.theme-toggle-slider.checked .theme-toggle-icon {
   transform: translateX(20px);
 }
 
 .theme-icon-part {
-  display: none;
+  position: absolute;
+  background: var(--sent-message-text);
 }
 
-/* Media queries */
+.sun {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+}
+
+.ray {
+  width: 2px;
+  height: 4px;
+  top: -0.5em;
+  left: 0.65em;
+  transform-origin: center 1em;
+}
+
+/* Highlighted search term */
+.highlight {
+  background: var(--button-bg);
+  color: var(--sent-message-text);
+  padding: 0 0.1rem;
+  border-radius: 2px;
+}
+
+/* Error container */
+.error-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background: var(--background);
+  color: var(--error-text);
+  text-align: center;
+  padding: 1rem;
+}
+
+.error-container h1 {
+  font-size: clamp(1.5rem, 6vw, 2rem);
+  margin-bottom: 1rem;
+}
+
+.error-container p {
+  font-size: clamp(0.875rem, 3.5vw, 1rem);
+  margin-bottom: 1rem;
+}
+
+.error-container button {
+  padding: 0.75rem 1.5rem;
+  background: var(--button-bg);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: clamp(0.875rem, 3.5vw, 1rem);
+  transition: background 0.3s ease, transform 0.2s ease;
+}
+
+.error-container button:hover {
+  background: var(--button-hover);
+  transform: translateY(-2px);
+}
+
+/* Responsive adjustments */
 @media (max-width: 768px) {
+  .sidebar {
+    width: 70vw;
+    transform: translateX(-100%);
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.2);
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
   .main-chat {
     margin-left: 60px;
     width: calc(100% - 60px);
   }
 
-  .menu-button {
-    display: block;
-  }
-.sidebar-toggle {
-    display: block;
-    position: fixed;
-    top: 1rem;
-    padding-right: 15px;
-    z-index: 1100;
-  }
-
-  .menu-button {
-    display: block;
-  }
-
-.settings-sidebar {
-    width: 70vw; /* Proportional width, same as sidebar */
-    right: -70vw; /* Adjust to match width */
-    box-shadow: -2px 0 8px rgba(0, 0, 0, 0.2); /* Add shadow for depth */
-  }
-
-  .settings-sidebar.open {
-    right: 0;
-  }
-.main-chat.settings-open {
-    margin-right: 70vw; /* Shift left to make space */
-    width: calc(100% - 60px - 70vw); /* Adjust width */
-  }
-  .user-profile, .info-page {
-    left: 0;
-    width: 100%;
-  }
-
-  .signup-box {
-    padding: 1rem;
-    max-width: 90vw;
-  }
-
-  .signup-nav {
-    gap: 0.25rem;
-  }
-
-  .message-box {
-    padding: 0.5rem;
-  }
-
-  .input-container {
-    padding: 0.5rem 1rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .signup-box {
-    padding: 0.75rem;
-  }
-
-  .signup-box h2 {
-    font-size: 1.25rem;
-  }
-
-  .signup-input, .signup-button, .google-btn {
-    font-size: 0.875rem;
-  }
-
-  .sidebar-header {
-    padding: 0.5rem;
-  }
-
-  .search-input {
-    padding: 0.5rem 2rem;
-    font-size: 0.875rem;
-  }
-
-  .user-item {
-    padding: 0.5rem;
-  }
-
-  .user-avatar, .user-avatar-placeholder {
-    width: 36px;
-    height: 36px;
-  }
-
-  .message-input {
-    font-size: 0.875rem;
-    padding: 0.5rem;
-  }
-
-  .send-button {
-    width: 40px;
-    height: 40px;
-  }
-
-  .modal-content {
-    padding: 0.75rem;
-    max-width: 90%;
-  }
-
-  .modal-profile-pic {
-    max-width: 250px;
-  }
-  @media (max-width: 480px) {
-  .sidebar {
-    width: 80vw; /* Slightly larger proportion for very small screens */
-  }
-
   .main-chat.sidebar-open {
-    margin-left: calc(60px + 80vw); /* Adjust for new sidebar width */
-    width: calc(100% - 60px - 80vw);
+    margin-left: calc(60px + 70vw);
+    width: calc(100% - 60px - 70vw);
   }
-.settings-sidebar {
-    width: 80vw; /* Slightly larger for very small screens */
-    right: -80vw;
+
+  .settings-sidebar {
+    width: 70vw;
+    right: -70vw;
   }
 
   .settings-sidebar.open {
@@ -1183,57 +1105,84 @@ body {
   }
 
   .main-chat.settings-open {
-    margin-right: 80vw;
-    width: calc(100% - 60px - 80vw);
-  }
-  .sidebar-header {
-    padding: 0.5rem;
+    margin-right: 70vw;
+    width: calc(100% - 60px - 70vw);
   }
 
   .search-input {
-    padding: 0.5rem 1.5rem; /* Further reduce padding */
-    font-size: 0.75rem; /* Smaller font for very small screens */
+    padding: 0.5rem 2rem;
+    font-size: 0.875rem;
+  }
+
+  .search-icon {
+    left: 0.5rem;
+    font-size: 1rem;
+  }
+
+  .clear-search {
+    right: 0.5rem;
+    font-size: 0.875rem;
+  }
+
+  .spinner {
+    right: 1.5rem;
+  }
+
+  .menu-button {
+    display: block;
+    position: fixed;
+    top: 1rem;
+    left: 70px;
+    z-index: 1100;
+  }
+
+  .profile-pic-large {
+    width: 80px;
+    height: 80px;
+    margin-bottom: 0.75rem;
+  }
+
+  .sidebar-toggle {
+    display: flex;
+  }
+}
+
+@media (max-width: 480px) {
+  .sidebar {
+    width: 80vw;
+  }
+
+  .main-chat.sidebar-open {
+    margin-left: calc(60px + 80vw);
+    width: calc(100% - 60px - 80vw);
+  }
+
+  .settings-sidebar {
+    width: 80vw;
+    right: -80vw;
+  }
+
+  .main-chat.settings-open {
+    margin-right: 80vw;
+    width: calc(100% - 60px - 80vw);
+  }
+
+  .search-input {
+    padding: 0.5rem 1.5rem;
+    font-size: 0.75rem;
   }
 
   .search-icon, .clear-search {
-    font-size: 0.75rem; /* Adjust icon sizes */
-  }
-}
-}
-
-@media (max-width: 768px) and (orientation: landscape) {
-  .message-box {
-    max-height: 50vh;
+    font-size: 0.75rem;
   }
 
-  .modal-content {
-    max-height: 60vh;
-  }
-  .header-top {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.75rem;
-    padding-right: 0.5rem; /* Add padding to avoid edge touching */
-  }
-}
-
-@media (min-width: 1024px) {
-  .sidebar {
-    width: 300px;
+  .spinner {
+    right: 1rem;
   }
 
-  .main-chat {
-    margin-left: 360px;
-    width: calc(100% - 360px);
+  .profile-pic-large {
+    width: 60px;
+    height: 60px;
+    margin-bottom: 0.5rem;
   }
-}
-
-/* Touch-friendly targets */
-.send-button, .file-label, .settings-button, .sidebar-icons .icon, .menu-button, .sidebar-toggle, .modal-close, .clear-search {
-  min-width: 44px;
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
