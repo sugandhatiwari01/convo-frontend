@@ -243,7 +243,7 @@ body {
     display: block; /* Ensure toggle button is visible */
     position: fixed; /* Keep it fixed for easy access */
     top: 1rem;
-    left: 70px; /* Position just after sidebar-icons */
+    padding-right: 50px; /* Position just after sidebar-icons */
     z-index: 1100; /* Ensure it’s above other elements */
   }
 @media (min-width: 769px) {
