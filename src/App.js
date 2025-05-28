@@ -175,11 +175,15 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
 };
 
 // ChatHeader Component
-const ChatHeader = ({ recipient, userDPs, setIsSettingsOpen, toggleSidebar, onlineUsers }) => {
+const ChatHeader = ({ recipient, userDPs, setIsSettingsOpen, toggleSidebar, onlineUsers, isSidebarOpen }) => {
   return (
     <div className="chat-header">
       <div className="user-info">
-        <IoMenu className="menu-button" onClick={() => toggleSidebar(true)} aria-label="Open sidebar" />
+        <IoMenu
+          className="menu-button"
+          onClick={() => toggleSidebar(!isSidebarOpen)} // Toggle based on current state
+          aria-label={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
+        />
         {recipient && (
           <>
             {userDPs[recipient] ? (
@@ -527,14 +531,15 @@ function App() {
     }
   }, []);
 
-  // Initialize sidebar visibility
-  useEffect(() => {
-    const handleResize = () => {
-      setIsSidebarOpen(window.innerWidth > 768);
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+// Initialize sidebar visibility
+useEffect(() => {
+  const handleResize = () => {
+    setIsSidebarOpen(window.innerWidth > 768); // Open sidebar on large screens, close on mobile
+  };
+  window.addEventListener('resize', handleResize);
+  handleResize(); // Call on mount to set initial state
+  return () => window.removeEventListener('resize', handleResize);
+}, []);
 
   // Toggle theme
   const toggleTheme = useCallback(() => {
@@ -1063,52 +1068,53 @@ function App() {
             showContactPicModal={showContactPicModal}
             isSearching={isSearching}
           />
-          {view === 'chat' && (
-            <div className="main-chat">
-              <ChatHeader
-                recipient={recipient}
-                userDPs={userDPs}
-                setIsSettingsOpen={setIsSettingsOpen}
-                toggleSidebar={setIsSidebarOpen}
-                onlineUsers={onlineUsers}
-              />
-              <div className="message-box" ref={messageBoxRef}>
-                {!recipient ? (
-                  <p className="empty-convo">
-                    Convo
-                    <br />
-                    where connection comes to life
-                  </p>
-                ) : messages.length === 0 ? (
-                  <p className="empty-convo">No messages yet. Start the conversation!</p>
-                ) : (
-                  messages.map((msg) => (
-                    <Message
-                      key={msg.messageId}
-                      msg={msg}
-                      username={username}
-                      toggleReactionPicker={toggleReactionPicker}
-                      reactionPicker={reactionPicker}
-                      handleReaction={handleReaction}
-                      showReactions={showReactions}
-                      reactions={reactions}
-                    />
-                  ))
-                )}
-                {typing && <p className="typing-indicator">{typing}</p>}
-              </div>
-              {recipient && (
-                <MessageInput
-                  message={message}
-                  handleTyping={handleTyping}
-                  sendMessage={sendMessage}
-                  fileInputRef={fileInputRef}
-                  sendFile={sendFile}
-                  isUploading={isUploading}
-                />
-              )}
-            </div>
-          )}
+ {view === 'chat' && (
+  <div className={`main-chat ${isSidebarOpen ? 'sidebar-open' : ''} ${isSettingsOpen ? 'settings-open' : ''}`}>
+    <ChatHeader
+      recipient={recipient}
+      userDPs={userDPs}
+      setIsSettingsOpen={setIsSettingsOpen}
+      toggleSidebar={setIsSidebarOpen}
+      onlineUsers={onlineUsers}
+      isSidebarOpen={isSidebarOpen}
+    />
+    <div className="message-box" ref={messageBoxRef}>
+      {!recipient ? (
+        <p className="empty-convo">
+          Convo
+          <br />
+          where connection comes to life
+        </p>
+      ) : messages.length === 0 ? (
+        <p className="empty-convo">No messages yet. Start the conversation!</p>
+      ) : (
+        messages.map((msg) => (
+          <Message
+            key={msg.messageId}
+            msg={msg}
+            username={username}
+            toggleReactionPicker={toggleReactionPicker}
+            reactionPicker={reactionPicker}
+            handleReaction={handleReaction}
+            showReactions={showReactions}
+            reactions={reactions}
+          />
+        ))
+      )}
+      {typing && <p className="typing-indicator">{typing}</p>}
+    </div>
+    {recipient && (
+      <MessageInput
+        message={message}
+        handleTyping={handleTyping}
+        sendMessage={sendMessage}
+        fileInputRef={fileInputRef}
+        sendFile={sendFile}
+        isUploading={isUploading}
+      />
+    )}
+  </div>
+)}
           <SettingsSidebar
             isSettingsOpen={isSettingsOpen}
             setIsSettingsOpen={setIsSettingsOpen}

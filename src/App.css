@@ -212,13 +212,13 @@ body {
 
 @media (max-width: 768px) {
   .sidebar {
-    width: 70vw; /* Proportional width (70% of viewport) instead of fixed 280px */
-    transform: translateX(-100%); /* Hidden by default */
-    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.2); /* Add shadow for depth when open */
+    width: 70vw;
+    transform: translateX(-100%); /* Hidden by default on mobile */
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.2);
   }
 
   .sidebar.open {
-    transform: translateX(0); /* Slide in when open */
+    transform: translateX(0);
   }
 
   .main-chat {
@@ -232,7 +232,13 @@ body {
     margin-left: calc(60px + 70vw); /* Adjust margin to accommodate sidebar */
     width: calc(100% - 60px - 70vw); /* Reduce width proportionally */
   }
+.sidebar.open {
+  transform: translateX(0);
+}
 
+.sidebar:not(.open) {
+  transform: translateX(-100%); /* Hide when not open */
+}
   .sidebar-toggle {
     display: block; /* Ensure toggle button is visible */
     position: fixed; /* Keep it fixed for easy access */
@@ -240,7 +246,15 @@ body {
     left: 70px; /* Position just after sidebar-icons */
     z-index: 1100; /* Ensure it’s above other elements */
   }
+@media (min-width: 769px) {
+  .sidebar-toggle {
+    display: none; /* Hidden by default on large screens since sidebar is open */
+  }
 
+  .sidebar.open .sidebar-toggle {
+    display: block; /* Show when sidebar is explicitly toggled open */
+  }
+}
   /* Adjust search input for better mobile usability */
   .search-input {
     padding: 0.5rem 2rem; /* Reduce padding slightly for smaller screens */
@@ -1050,23 +1064,34 @@ body {
     width: calc(100% - 60px);
   }
 
+  .menu-button {
+    display: block;
+  }
   .sidebar-toggle {
     display: block;
+    position: fixed;
+    top: 1rem;
+    padding-right: 15px;
+    z-index: 1100;
   }
 
   .menu-button {
     display: block;
   }
 
-  .settings-sidebar {
-    width: 100%;
-    right: -100%;
+.settings-sidebar {
+    width: 70vw; /* Proportional width, same as sidebar */
+    right: -70vw; /* Adjust to match width */
+    box-shadow: -2px 0 8px rgba(0, 0, 0, 0.2); /* Add shadow for depth */
   }
 
   .settings-sidebar.open {
     right: 0;
   }
-
+.main-chat.settings-open {
+    margin-right: 70vw; /* Shift left to make space */
+    width: calc(100% - 60px - 70vw); /* Adjust width */
+  }
   .user-profile, .info-page {
     left: 0;
     width: 100%;
@@ -1148,7 +1173,19 @@ body {
     margin-left: calc(60px + 80vw); /* Adjust for new sidebar width */
     width: calc(100% - 60px - 80vw);
   }
+.settings-sidebar {
+    width: 80vw; /* Slightly larger for very small screens */
+    right: -80vw;
+  }
 
+  .settings-sidebar.open {
+    right: 0;
+  }
+
+  .main-chat.settings-open {
+    margin-right: 80vw;
+    width: calc(100% - 60px - 80vw);
+  }
   .sidebar-header {
     padding: 0.5rem;
   }
