@@ -25,7 +25,7 @@ class ErrorBoundary extends React.Component {
         <div className="error-container">
           <h1>Something went wrong</h1>
           <p>{this.state.error?.message || 'Please try refreshing the page.'}</p>
-          <button onClick={() => window.location.reload()}>Retry</button> {/* Added retry button */}
+          <button onClick={() => window.location.reload()}>Retry</button>
         </div>
       );
     }
@@ -39,7 +39,7 @@ const backendUrl = process.env.REACT_APP_BACKEND_URL || 'https://convodb1.onrend
 
 // Axios instance
 const api = axios.create({
-  baseURL: apiBase,
+  baseURL: apiBase, // Correct base URL without /api
   withCredentials: true,
 });
 
@@ -75,7 +75,7 @@ const retry = async (fn, retries = 3, delay = 1000) => {
 
 // Sidebar Component
 const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRecipient, loadChatHistory, unreadMessages, userDPs, isSidebarOpen, toggleSidebar, onlineUsers, showContactPicModal, isSearching }) => {
-  const clearSearch = useCallback(() => setSearchTerm(''), []); // Memoized
+  const clearSearch = useCallback(() => setSearchTerm(''), []);
 
   return (
     <div className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
@@ -738,7 +738,12 @@ function App() {
       return;
     }
     try {
-      await api.post('/api/users/register', { email, username: username.toLowerCase(), password });
+      const response = await api.post('/api/users/register', {
+        email,
+        username: username.toLowerCase(),
+        password,
+      });
+      console.log('Registration successful:', response.data);
       setView('login');
       setError('Registration successful! Please log in.');
       setEmail('');
@@ -746,8 +751,13 @@ function App() {
       setPassword('');
       setTimeout(() => setError(''), 5000);
     } catch (error) {
-      console.error('Registration error:', error.response?.data?.message);
-      setError(error.response?.data?.message || 'Registration failed. Please try again.');
+      const errorMessage = error.response?.data?.message || error.message;
+      console.error('Registration error:', {
+        message: errorMessage,
+        status: error.response?.status,
+        url: error.config?.url,
+      });
+      setError(errorMessage || 'Registration failed. Please try again.');
       setTimeout(() => setError(''), 5000);
     }
   }, [email, username, password]);
@@ -757,6 +767,7 @@ function App() {
     e.preventDefault();
     try {
       const response = await api.post('/api/users/login', { email, password });
+      console.log('Login successful:', response.data);
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('username', response.data.username.toLowerCase());
       api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
@@ -770,8 +781,13 @@ function App() {
       setPassword('');
       setError('');
     } catch (error) {
-      console.error('Login error:', error.response?.data?.message || error.message);
-      setError(error.response?.data?.message || 'Login failed. Please check your email or password.');
+      const errorMessage = error.response?.data?.message || error.message;
+      console.error('Login error:', {
+        message: errorMessage,
+        status: error.response?.status,
+        url: error.config?.url,
+      });
+      setError(errorMessage || 'Login failed. Please check your email or password.');
       setTimeout(() => setError(''), 5000);
     }
   }, [email, password, fetchUsers, fetchUnreadMessages]);
