@@ -46,6 +46,9 @@ const api = axios.create({
 const socket = io(backendUrl, {
   withCredentials: true,
   transports: ['websocket', 'polling'],
+  reconnection: true,
+  reconnectionAttempts: 5,
+  reconnectionDelay: 1000,
 });
 
 // Debounce utility
@@ -159,7 +162,7 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
             </div>
           ))
         ) : (
-          <p>{searchTerm ? `No users found for "${searchTerm}"` : 'No recent contacts'}</p>
+          <p>{searchTerm ? `No users found for "${searchTerm}"` : 'Type to search for contacts'}</p>
         )}
       </div>
     </div>
@@ -465,8 +468,6 @@ function App() {
     const usernameParam = urlParams.get('username');
     const errorParam = urlParams.get('error');
 
-    console.log('Auth check:', { token, storedUsername, tokenParam, usernameParam, errorParam });
-
     if (errorParam) {
       setError(`Authentication failed: ${errorParam}`);
       window.history.replaceState({}, document.title, '/');
@@ -476,15 +477,15 @@ function App() {
 
     if (tokenParam && usernameParam) {
       localStorage.setItem('token', tokenParam);
-      localStorage.setItem('username', decodeURIComponent(usernameParam));
+      localStorage.setItem('username', decodeURIComponent(usernameParam).toLowerCase());
       api.defaults.headers.common['Authorization'] = `Bearer ${tokenParam}`;
       setIsAuthenticated(true);
-      setUsername(decodeURIComponent(usernameParam));
-      socket.emit('registerUser', decodeURIComponent(usernameParam));
+      setUsername(decodeURIComponent(usernameParam).toLowerCase());
+      socket.emit('registerUser', decodeURIComponent(usernameParam).toLowerCase());
       fetchUsers();
       fetchUnreadMessages();
       api
-        .get(`/user/profile-pic/${decodeURIComponent(usernameParam)}`)
+        .get(`/user/profile-pic/${decodeURIComponent(usernameParam).toLowerCase()}`)
         .then((response) => setProfilePic(response.data.profilePic))
         .catch((err) => console.error('Failed to fetch profile pic:', err.message));
       setView('chat');
@@ -492,12 +493,12 @@ function App() {
     } else if (token && storedUsername) {
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       setIsAuthenticated(true);
-      setUsername(storedUsername);
-      socket.emit('registerUser', storedUsername);
+      setUsername(storedUsername.toLowerCase());
+      socket.emit('registerUser', storedUsername.toLowerCase());
       fetchUsers();
       fetchUnreadMessages();
       api
-        .get(`/user/profile-pic/${storedUsername}`)
+        .get(`/user/profile-pic/${storedUsername.toLowerCase()}`)
         .then((response) => setProfilePic(response.data.profilePic))
         .catch((err) => console.error('Failed to fetch profile pic:', err.message));
       setView('chat');
@@ -529,6 +530,8 @@ function App() {
       setUnreadMessages(response.data);
     } catch (error) {
       console.error('Unread messages error:', error.message);
+      setError('Failed to fetch unread messages');
+      setTimeout(() => setError(''), 5000);
     }
   }, [username]);
 
@@ -565,7 +568,7 @@ function App() {
         setUserDPs(Object.fromEntries(dps.map(({ user, profilePic }) => [user, profilePic])));
       } catch (error) {
         console.error('Fetch users error:', error.message);
-        setError('Failed to load contacts');
+        setError(`Failed to load contacts: ${error.message}`);
         setTimeout(() => setError(''), 5000);
         setUsers([...contactedUsernames].filter((u) => u.toLowerCase() !== username.toLowerCase()));
       } finally {
@@ -627,10 +630,16 @@ function App() {
           status === 'online' ? [...new Set([...prev, user])] : prev.filter((u) => u !== user)
         );
       });
+      socket.on('messagesRead', ({ recipient: readRecipient }) => {
+        if (readRecipient === recipient.toLowerCase()) {
+          setUnreadMessages((prev) => ({ ...prev, [readRecipient]: 0 }));
+        }
+      });
       return () => {
         socket.off('receiveMessage');
         socket.off('userTyping');
         socket.off('userStatus');
+        socket.off('messagesRead');
       };
     }
   }, [isAuthenticated, username, recipient]);
@@ -642,7 +651,7 @@ function App() {
       return;
     }
     try {
-      const response = await retry(() => api.get(`/messages/${currentUser}/${selectedRecipient}`));
+      const response = await retry(() => api.get(`/messages/${currentUser.toLowerCase()}/${selectedRecipient.toLowerCase()}`));
       setMessages(
         response.data.map((msg) => ({
           messageId: msg.messageId,
@@ -657,7 +666,7 @@ function App() {
       setContactedUsernames((prev) =>
         prev.includes(selectedRecipient) ? prev : [...prev, selectedRecipient]
       );
-      await retry(() => api.post(`/messages/mark-read/${currentUser}/${selectedRecipient}`));
+      await retry(() => api.post(`/messages/mark-read/${currentUser.toLowerCase()}/${selectedRecipient.toLowerCase()}`));
     } catch (error) {
       console.error('Failed to fetch chat history:', error.message);
       setMessages([]);
@@ -669,7 +678,6 @@ function App() {
   // Google login
   const handleGoogleLogin = () => {
     const googleAuthUrl = `${backendUrl}/auth/google`;
-    console.log('Initiating Google Auth:', googleAuthUrl);
     window.location.href = googleAuthUrl;
   };
 
@@ -692,7 +700,7 @@ function App() {
       return;
     }
     try {
-      await api.post('/api/users/register', { email, username, password });
+      await api.post('/api/users/register', { email, username: username.toLowerCase(), password });
       setView('login');
       setError('');
       setEmail('');
@@ -711,12 +719,12 @@ function App() {
     try {
       const response = await api.post('/api/users/login', { email, password });
       localStorage.setItem('token', response.data.token);
-      localStorage.setItem('username', response.data.username);
+      localStorage.setItem('username', response.data.username.toLowerCase());
       api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
       setIsAuthenticated(true);
-      setUsername(response.data.username);
+      setUsername(response.data.username.toLowerCase());
       setView('chat');
-      socket.emit('registerUser', response.data.username);
+      socket.emit('registerUser', response.data.username.toLowerCase());
       fetchUsers();
       fetchUnreadMessages();
       setError('');
@@ -734,8 +742,8 @@ function App() {
     if (!message.trim() || !isAuthenticated || !recipient || isUploading) return;
     try {
       const response = await api.post('/api/messages/sendText', {
-        sender: username,
-        recipient,
+        sender: username.toLowerCase(),
+        recipient: recipient.toLowerCase(),
         text: message,
         timestamp: new Date().toISOString(),
       });
@@ -745,15 +753,30 @@ function App() {
           ? prev
           : [...prev, savedMessage]
       );
-      socket.emit(
+      const emitWithRetry = (event, data, callback, retries = 3, delay = 1000) => {
+        let attempts = 0;
+        const tryEmit = () => {
+          if (socket.connected) {
+            socket.emit(event, data, callback);
+          } else if (attempts < retries) {
+            attempts++;
+            setTimeout(tryEmit, delay);
+          } else {
+            setError('Failed to send message: No connection');
+            setTimeout(() => setError(''), 5000);
+          }
+        };
+        tryEmit();
+      };
+      emitWithRetry(
         'sendMessage',
         {
-          recipient,
+          recipient: recipient.toLowerCase(),
           message: savedMessage.text,
           type: savedMessage.type,
           messageId: savedMessage.messageId,
           timestamp: savedMessage.timestamp,
-          username,
+          username: username.toLowerCase(),
         },
         (response) => {
           if (response?.status === 'error') {
@@ -766,7 +789,7 @@ function App() {
         prev.includes(recipient) ? prev : [...prev, recipient]
       );
       setMessage('');
-      socket.emit('stopTyping', { recipient });
+      socket.emit('stopTyping', { recipient: recipient.toLowerCase() });
       await fetchUnreadMessages();
     } catch (error) {
       console.error('Send message error:', error.message);
@@ -779,12 +802,23 @@ function App() {
   const sendFile = async (event) => {
     const file = event.target.files[0];
     if (!file || !isAuthenticated || !recipient || isUploading) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setError('File size must be less than 5MB');
+      setTimeout(() => setError(''), 5000);
+      return;
+    }
+    const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf'];
+    if (!allowedTypes.includes(file.type)) {
+      setError('Only JPEG, PNG, and PDF files are allowed');
+      setTimeout(() => setError(''), 5000);
+      return;
+    }
     setIsUploading(true);
     try {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('recipient', recipient);
-      formData.append('username', username);
+      formData.append('recipient', recipient.toLowerCase());
+      formData.append('username', username.toLowerCase());
       formData.append('timestamp', new Date().toISOString());
       const response = await api.post('/api/messages/uploadFile', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -794,9 +828,9 @@ function App() {
         prev.some((m) => m.messageId === msg.messageId) ? prev : [...prev, msg]
       );
       socket.emit('sendMessage', {
-        recipient,
+        recipient: recipient.toLowerCase(),
         type: msg.type,
-        username,
+        username: username.toLowerCase(),
         messageId: msg.messageId,
         file: msg.file,
         timestamp: msg.timestamp,
@@ -823,12 +857,12 @@ function App() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('username', username);
+      formData.append('username', username.toLowerCase());
       const response = await api.post('/api/users/uploadProfilePic', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setProfilePic(response.data.filename);
-      setUserDPs((prev) => ({ ...prev, [username]: response.data.filename }));
+      setUserDPs((prev) => ({ ...prev, [username.toLowerCase()]: response.data.filename }));
     } catch (error) {
       console.error('Failed to update profile pic:', error.message);
       setError('Failed to update profile picture');
@@ -844,9 +878,9 @@ function App() {
     const value = e.target.value;
     setMessage(value);
     if (recipient && value) {
-      socket.emit('typing', { recipient, username });
+      socket.emit('typing', { recipient: recipient.toLowerCase(), username: username.toLowerCase() });
     } else {
-      socket.emit('stopTyping', { recipient });
+      socket.emit('stopTyping', { recipient: recipient.toLowerCase() });
     }
   };
 
