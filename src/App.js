@@ -121,30 +121,29 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
               tabIndex={0}
               onKeyPress={(e) => e.key === 'Enter' && e.target.click()}
             >
-{userDPs[user] ? (
-  <img
-    src={`${backendUrl}/Uploads/${userDPs[user]}`}
-    alt={user}
-    className="user-avatar"
-    onClick={(e) => {
-      e.stopPropagation();
-      showContactPicModal(user, `${backendUrl}/Uploads/${userDPs[user]}`);
-    }}
-    onError={() => setUserDPs((prev) => ({ ...prev, [user]: null }))} // Fallback to placeholder on error
-    style={{ cursor: 'pointer' }}
-  />
-) : (
-  <div
-    className="user-avatar-placeholder"
-    onClick={(e) => {
-      e.stopPropagation();
-      showContactPicModal(user, null);
-    }}
-    style={{ cursor: 'pointer' }}
-  >
-    {user.charAt(0).toUpperCase()}
-  </div>
-)}
+              {userDPs[user] ? (
+                <img
+                  src={`${backendUrl}/Uploads/${userDPs[user]}`}
+                  alt={user}
+                  className="user-avatar"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    showContactPicModal(user, `${backendUrl}/Uploads/${userDPs[user]}`);
+                  }}
+                  style={{ cursor: 'pointer' }}
+                />
+              ) : (
+                <div
+                  className="user-avatar-placeholder"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    showContactPicModal(user, null);
+                  }}
+                  style={{ cursor: 'pointer' }}
+                >
+                  {user.charAt(0).toUpperCase()}
+                </div>
+              )}
               <span className="user-name">
                 {searchTerm && user.toLowerCase().includes(searchTerm.toLowerCase()) ? (
                   <>
@@ -1069,53 +1068,53 @@ useEffect(() => {
             showContactPicModal={showContactPicModal}
             isSearching={isSearching}
           />
- {view === 'chat' && (
-  <div className={`main-chat ${isSidebarOpen ? 'sidebar-open' : ''} ${isSettingsOpen ? 'settings-open' : ''}`}>
-    <ChatHeader
-      recipient={recipient}
-      userDPs={userDPs}
-      setIsSettingsOpen={setIsSettingsOpen}
-      toggleSidebar={setIsSidebarOpen}
-      onlineUsers={onlineUsers}
-      isSidebarOpen={isSidebarOpen}
-    />
-    <div className="message-box" ref={messageBoxRef}>
-      {!recipient ? (
-        <p className="empty-convo">
-          Convo
-          <br />
-          where connection comes to life
-        </p>
-      ) : messages.length === 0 ? (
-        <p className="empty-convo">No messages yet. Start the conversation!</p>
-      ) : (
-        messages.map((msg) => (
-          <Message
-            key={msg.messageId}
-            msg={msg}
-            username={username}
-            toggleReactionPicker={toggleReactionPicker}
-            reactionPicker={reactionPicker}
-            handleReaction={handleReaction}
-            showReactions={showReactions}
-            reactions={reactions}
-          />
-        ))
-      )}
-      {typing && <p className="typing-indicator">{typing}</p>}
-    </div>
-    {recipient && (
-      <MessageInput
-        message={message}
-        handleTyping={handleTyping}
-        sendMessage={sendMessage}
-        fileInputRef={fileInputRef}
-        sendFile={sendFile}
-        isUploading={isUploading}
-      />
-    )}
-  </div>
-)}
+          {view === 'chat' && (
+            <div className="main-chat">
+          <ChatHeader
+  recipient={recipient}
+  userDPs={userDPs}
+  setIsSettingsOpen={setIsSettingsOpen}
+  toggleSidebar={setIsSidebarOpen}
+  onlineUsers={onlineUsers}
+  isSidebarOpen={isSidebarOpen} // Add this prop
+/>
+              <div className="message-box" ref={messageBoxRef}>
+                {!recipient ? (
+                  <p className="empty-convo">
+                    Convo
+                    <br />
+                    where connection comes to life
+                  </p>
+                ) : messages.length === 0 ? (
+                  <p className="empty-convo">No messages yet. Start the conversation!</p>
+                ) : (
+                  messages.map((msg) => (
+                    <Message
+                      key={msg.messageId}
+                      msg={msg}
+                      username={username}
+                      toggleReactionPicker={toggleReactionPicker}
+                      reactionPicker={reactionPicker}
+                      handleReaction={handleReaction}
+                      showReactions={showReactions}
+                      reactions={reactions}
+                    />
+                  ))
+                )}
+                {typing && <p className="typing-indicator">{typing}</p>}
+              </div>
+              {recipient && (
+                <MessageInput
+                  message={message}
+                  handleTyping={handleTyping}
+                  sendMessage={sendMessage}
+                  fileInputRef={fileInputRef}
+                  sendFile={sendFile}
+                  isUploading={isUploading}
+                />
+              )}
+            </div>
+          )}
           <SettingsSidebar
             isSettingsOpen={isSettingsOpen}
             setIsSettingsOpen={setIsSettingsOpen}
