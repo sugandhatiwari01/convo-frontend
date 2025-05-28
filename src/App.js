@@ -25,6 +25,7 @@ class ErrorBoundary extends React.Component {
         <div className="error-container">
           <h1>Something went wrong</h1>
           <p>{this.state.error?.message || 'Please try refreshing the page.'}</p>
+          <button onClick={() => window.location.reload()}>Retry</button> {/* Added retry button */}
         </div>
       );
     }
@@ -33,12 +34,12 @@ class ErrorBoundary extends React.Component {
 }
 
 // API and backend URLs
-const apiBase = process.env.REACT_APP_API_BASE || 'https://convodb1.onrender.com'; // Removed /api
+const apiBase = process.env.REACT_APP_API_BASE || 'https://convodb1.onrender.com';
 const backendUrl = process.env.REACT_APP_BACKEND_URL || 'https://convodb1.onrender.com';
 
 // Axios instance
 const api = axios.create({
-  baseURL: apiBase, // e.g., https://convodb1.onrender.com
+  baseURL: apiBase,
   withCredentials: true,
 });
 
@@ -74,14 +75,14 @@ const retry = async (fn, retries = 3, delay = 1000) => {
 
 // Sidebar Component
 const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRecipient, loadChatHistory, unreadMessages, userDPs, isSidebarOpen, toggleSidebar, onlineUsers, showContactPicModal, isSearching }) => {
-  const clearSearch = () => setSearchTerm('');
+  const clearSearch = useCallback(() => setSearchTerm(''), []); // Memoized
 
   return (
     <div className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
       <div className="sidebar-header">
         <div className="header-top">
           <h1>Convo</h1>
-          <button className="sidebar-toggle" onClick={() => toggleSidebar(false)}>
+          <button className="sidebar-toggle" onClick={() => toggleSidebar(false)} aria-label="Close sidebar">
             <IoChevronBack size={24} />
           </button>
         </div>
@@ -92,10 +93,11 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="search-input"
+            aria-label="Search users"
           />
           <IoSearchOutline className="search-icon" />
           {searchTerm && (
-            <button className="clear-search" onClick={clearSearch}>
+            <button className="clear-search" onClick={clearSearch} aria-label="Clear search">
               ×
             </button>
           )}
@@ -115,6 +117,9 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
                 toggleSidebar(false);
                 setSearchTerm('');
               }}
+              role="button"
+              tabIndex={0}
+              onKeyPress={(e) => e.key === 'Enter' && e.target.click()}
             >
               {userDPs[user] ? (
                 <img
@@ -174,7 +179,7 @@ const ChatHeader = ({ recipient, userDPs, setIsSettingsOpen, toggleSidebar, onli
   return (
     <div className="chat-header">
       <div className="user-info">
-        <IoMenu className="menu-button" onClick={() => toggleSidebar(true)} />
+        <IoMenu className="menu-button" onClick={() => toggleSidebar(true)} aria-label="Open sidebar" />
         {recipient && (
           <>
             {userDPs[recipient] ? (
@@ -195,7 +200,7 @@ const ChatHeader = ({ recipient, userDPs, setIsSettingsOpen, toggleSidebar, onli
           </>
         )}
       </div>
-      <button onClick={() => setIsSettingsOpen(true)} className="settings-button">
+      <button onClick={() => setIsSettingsOpen(true)} className="settings-button" aria-label="Open settings">
         <IoSettingsOutline size={20} />
       </button>
     </div>
@@ -206,7 +211,7 @@ const ChatHeader = ({ recipient, userDPs, setIsSettingsOpen, toggleSidebar, onli
 const UserProfile = ({ username, profilePic, setView }) => {
   return (
     <div className="user-profile">
-      <IoChevronBack className="close-button" onClick={() => setView('chat')} />
+      <IoChevronBack className="close-button" onClick={() => setView('chat')} aria-label="Back to chat" />
       <div className="profile-info">
         <img
           src={profilePic ? `${backendUrl}/Uploads/${profilePic}` : `https://placehold.co/120?text=${username.charAt(0)}`}
@@ -224,7 +229,7 @@ const UserProfile = ({ username, profilePic, setView }) => {
 const InfoPage = ({ setView }) => {
   return (
     <div className="info-page">
-      <IoChevronBack className="close-button" onClick={() => setView('chat')} />
+      <IoChevronBack className="close-button" onClick={() => setView('chat')} aria-label="Back to chat" />
       <div className="info-content">
         <h2>Welcome to Convo</h2>
         <p>Convo is your space to connect with others! Here are some tips to get started:</p>
@@ -243,7 +248,7 @@ const ProfilePicModal = ({ profilePic, username, onClose }) => {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose}>×</button>
+        <button className="modal-close" onClick={onClose} aria-label="Close modal">×</button>
         <img
           src={profilePic || `https://placehold.co/300?text=${username.charAt(0)}`}
           alt={username}
@@ -259,7 +264,7 @@ const SettingsSidebar = ({ isSettingsOpen, setIsSettingsOpen, username, profileP
   return (
     <div className={`settings-sidebar ${isSettingsOpen ? 'open' : ''}`}>
       <div className="settings-header">
-        <IoChevronBack onClick={() => setIsSettingsOpen(false)} className="close-button" />
+        <IoChevronBack onClick={() => setIsSettingsOpen(false)} className="close-button" aria-label="Close settings" />
         <h1>Settings</h1>
       </div>
       <div className="settings-content">
@@ -279,7 +284,9 @@ const SettingsSidebar = ({ isSettingsOpen, setIsSettingsOpen, username, profileP
         />
         <label htmlFor="profile-pic-upload" className="profile-pic-label">Change Profile Picture</label>
         <div className="settings-options">
-          <div className="option" onClick={showProfilePicModal}>View Profile Pic</div>
+          <div className="option" onClick={showProfilePicModal} role="button" tabIndex={0} onKeyPress={(e) => e.key === 'Enter' && showProfilePicModal()}>
+            View Profile Pic
+          </div>
           <div className="option">
             Show Message Reactions
             <label className="reaction-toggle">
@@ -293,7 +300,7 @@ const SettingsSidebar = ({ isSettingsOpen, setIsSettingsOpen, username, profileP
           </div>
           <div className="option appearance-option">
             Appearance
-            <div className="theme-toggle" onClick={toggleTheme}>
+            <div className="theme-toggle" onClick={toggleTheme} role="button" tabIndex={0} onKeyPress={(e) => e.key === 'Enter' && toggleTheme()}>
               <div className={`theme-toggle-slider ${theme === 'dark' ? 'checked' : ''}`}>
                 <div className="theme-toggle-icon">
                   <div className="theme-icon-part sun"></div>
@@ -327,6 +334,7 @@ const MessageInput = ({ message, handleTyping, sendMessage, fileInputRef, sendFi
         className="message-input"
         placeholder="Enter Text..."
         disabled={isUploading}
+        aria-label="Message input"
       />
       <input
         type="file"
@@ -337,10 +345,10 @@ const MessageInput = ({ message, handleTyping, sendMessage, fileInputRef, sendFi
         ref={fileInputRef}
         disabled={isUploading}
       />
-      <label htmlFor="file-upload" className="file-label">
+      <label htmlFor="file-upload" className="file-label" aria-label="Attach file">
         <IoAttachOutline size={20} />
       </label>
-      <button onClick={sendMessage} className="send-button" disabled={isUploading}>
+      <button onClick={sendMessage} className="send-button" disabled={isUploading} aria-label="Send message">
         <IoSendSharp size={18} />
       </button>
       {isUploading && <FaSpinner className="spinner" />}
@@ -351,9 +359,9 @@ const MessageInput = ({ message, handleTyping, sendMessage, fileInputRef, sendFi
 // Memoized Message Component
 const Message = React.memo(({ msg, username, toggleReactionPicker, reactionPicker, handleReaction, showReactions, reactions }) => {
   return (
-    <div className={msg.username === username ? 'sent-message-container' : 'received-message-container'}>
+    <div className={msg.sender === username ? 'sent-message-container' : 'received-message-container'}>
       {msg.type === 'text' ? (
-        <div className={msg.username === username ? 'sent-message' : 'received-message'}>
+        <div className={msg.sender === username ? 'sent-message' : 'received-message'}>
           <p onClick={() => toggleReactionPicker(msg.messageId)} style={{ cursor: 'pointer' }}>
             {msg.text}
             <small>{new Date(msg.timestamp).toLocaleTimeString()}</small>
@@ -365,6 +373,9 @@ const Message = React.memo(({ msg, username, toggleReactionPicker, reactionPicke
                   key={emoji}
                   className="reaction-emoji"
                   onClick={() => handleReaction(msg.messageId, emoji)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyPress={(e) => e.key === 'Enter' && handleReaction(msg.messageId, emoji)}
                 >
                   {emoji}
                 </span>
@@ -384,7 +395,7 @@ const Message = React.memo(({ msg, username, toggleReactionPicker, reactionPicke
           )}
         </div>
       ) : (
-        <div className={msg.username === username ? 'sent-message' : 'received-message'}>
+        <div className={msg.sender === username ? 'sent-message' : 'received-message'}>
           {msg.file && (
             <a
               href={`${backendUrl}/Uploads/${msg.file}`}
@@ -393,7 +404,15 @@ const Message = React.memo(({ msg, username, toggleReactionPicker, reactionPicke
               className="file-link"
               download={msg.type === 'document'}
             >
-              {msg.type === 'image' ? 'View Image' : 'Download Document'}
+              {msg.type === 'image' ? (
+                <img
+                  src={`${backendUrl}/Uploads/${msg.file}`}
+                  alt="Uploaded file"
+                  style={{ maxWidth: '200px', maxHeight: '200px' }}
+                />
+              ) : (
+                'Download Document'
+              )}
             </a>
           )}
           <small>{new Date(msg.timestamp).toLocaleTimeString()}</small>
@@ -469,23 +488,24 @@ function App() {
     const errorParam = urlParams.get('error');
 
     if (errorParam) {
-      setError(`Authentication failed: ${errorParam}`);
+      setError(`Authentication failed: ${decodeURIComponent(errorParam)}`);
       window.history.replaceState({}, document.title, '/');
       setTimeout(() => setError(''), 5000);
       return;
     }
 
     if (tokenParam && usernameParam) {
+      const decodedUsername = decodeURIComponent(usernameParam).toLowerCase();
       localStorage.setItem('token', tokenParam);
-      localStorage.setItem('username', decodeURIComponent(usernameParam).toLowerCase());
+      localStorage.setItem('username', decodedUsername);
       api.defaults.headers.common['Authorization'] = `Bearer ${tokenParam}`;
       setIsAuthenticated(true);
-      setUsername(decodeURIComponent(usernameParam).toLowerCase());
-      socket.emit('registerUser', decodeURIComponent(usernameParam).toLowerCase());
+      setUsername(decodedUsername);
+      socket.emit('registerUser', decodedUsername);
       fetchUsers();
-      fetchUnreadMessages();
+      fetchUnreadMessages(decodedUsername);
       api
-        .get(`/user/profile-pic/${decodeURIComponent(usernameParam).toLowerCase()}`)
+        .get(`/api/users/profile-pic/${decodedUsername}`)
         .then((response) => setProfilePic(response.data.profilePic))
         .catch((err) => console.error('Failed to fetch profile pic:', err.message));
       setView('chat');
@@ -496,9 +516,9 @@ function App() {
       setUsername(storedUsername.toLowerCase());
       socket.emit('registerUser', storedUsername.toLowerCase());
       fetchUsers();
-      fetchUnreadMessages();
+      fetchUnreadMessages(storedUsername.toLowerCase());
       api
-        .get(`/user/profile-pic/${storedUsername.toLowerCase()}`)
+        .get(`/api/users/profile-pic/${storedUsername.toLowerCase()}`)
         .then((response) => setProfilePic(response.data.profilePic))
         .catch((err) => console.error('Failed to fetch profile pic:', err.message));
       setView('chat');
@@ -513,82 +533,83 @@ function App() {
       setIsSidebarOpen(window.innerWidth > 768);
     };
     window.addEventListener('resize', handleResize);
-    handleResize();
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   // Toggle theme
-  const toggleTheme = () => {
+  const toggleTheme = useCallback(() => {
     setTheme((prevTheme) => (prevTheme === 'light' ? 'dark' : 'light'));
-  };
+  }, []);
 
   // Fetch unread messages
-  const fetchUnreadMessages = useCallback(async () => {
-    if (!username) return;
+  const fetchUnreadMessages = useCallback(async (user) => {
+    if (!user) return;
     try {
-      const response = await retry(() => api.get(`/messages/unread/${username.toLowerCase()}`));
+      const response = await retry(() => api.get(`/api/messages/unread/${user.toLowerCase()}`));
       setUnreadMessages(response.data);
     } catch (error) {
       console.error('Unread messages error:', error.message);
       setError('Failed to fetch unread messages');
       setTimeout(() => setError(''), 5000);
     }
-  }, [username]);
+  }, []);
 
   // Fetch users with optimized search
-  const fetchUsers = useCallback(
-    async (query = '') => {
-      if (!username || !isAuthenticated) return;
-      setIsSearching(true);
-      try {
-        const token = localStorage.getItem('token');
-        if (!token) throw new Error('No authentication token');
- const response = await retry(() =>
-  api.get('/api/users/search', { // Changed from /users/search
-    params: { query: query.toLowerCase(), currentUser: username.toLowerCase() },
-    headers: { Authorization: `Bearer ${token}` },
-  })
-);
-        let uniqueUsers = [...new Set(response.data)].filter(
-          (u) => u.toLowerCase() !== username.toLowerCase()
-        );
-        if (!query) {
-          const recentUsers = uniqueUsers.filter((u) => contactedUsernames.includes(u));
-          const otherUsers = uniqueUsers.filter((u) => !contactedUsernames.includes(u));
-          uniqueUsers = [...recentUsers, ...otherUsers];
-        }
-        setUsers(uniqueUsers);
-        const dpPromises = uniqueUsers.map((user) =>
-          api
-            .get(`/user/profile-pic/${user}`, { headers: { Authorization: `Bearer ${token}` } })
-            .then((res) => ({ user, profilePic: res.data.profilePic }))
-            .catch(() => ({ user, profilePic: null }))
-        );
-        const dps = await Promise.all(dpPromises);
-        setUserDPs(Object.fromEntries(dps.map(({ user, profilePic }) => [user, profilePic])));
-      } catch (error) {
-        console.error('Fetch users error:', error.message);
-        setError(`Failed to load contacts: ${error.message}`);
-        setTimeout(() => setError(''), 5000);
-        setUsers([...contactedUsernames].filter((u) => u.toLowerCase() !== username.toLowerCase()));
-      } finally {
-        setIsSearching(false);
+  const fetchUsers = useCallback(async (query = '') => {
+    if (!username || !isAuthenticated) return;
+    setIsSearching(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error('No authentication token');
+      const response = await retry(() =>
+        api.get('/api/users/search', {
+          params: { query: query.toLowerCase(), currentUser: username.toLowerCase() },
+          headers: { Authorization: `Bearer ${token}` },
+        })
+      );
+      let uniqueUsers = [...new Set(response.data.map((u) => u.toLowerCase()))].filter(
+        (user) => user !== username.toLowerCase()
+      );
+      if (!query) {
+        const recentUsers = uniqueUsers.filter((user) => contactedUsernames.includes(user));
+        const otherUsers = uniqueUsers.filter((u) => !contactedUsernames.includes(u));
+        uniqueUsers = [...recentUsers, ...otherUsers];
       }
-    },
-    [username, isAuthenticated, contactedUsernames]
-  );
+      setUsers(uniqueUsers);
+      const dpPromises = uniqueUsers.map((user) =>
+        api
+          .get(`/api/users/profile-pic/${user}`, { headers: { Authorization: `Bearer ${token}` } })
+          .then((res) => ({ user, profilePic: res.data.profilePic }))
+          .catch(() => ({ user, profilePic: null }))
+      );
+      const dps = await Promise.all(dpPromises);
+      setUserDPs((prev) => ({
+        ...prev,
+        ...Object.fromEntries(dps.map(({ user, profilePic }) => [user, profilePic])),
+      }));
+    } catch (error) {
+      console.error('Fetch users error:', error.message);
+      setError(`Failed to load contacts: ${error.message}`);
+      setTimeout(() => setError(''), 5000);
+      setUsers([...new Set(contactedUsernames)].filter((user) => user !== username.toLowerCase()));
+    } finally {
+      setIsSearching(false);
+    }
+  }, [username, isAuthenticated, contactedUsernames]);
 
   // Debounced fetch users
-  const debouncedFetchUsers = useCallback(debounce(fetchUsers, 300), [fetchUsers]);
+  const debouncedFetchUsers = useMemo(() => debounce(fetchUsers, 300), [fetchUsers]);
 
   // Search effect
   useEffect(() => {
-    if (!searchTerm) {
-      fetchUsers();
-    } else {
-      debouncedFetchUsers(searchTerm);
+    if (isAuthenticated) {
+      if (!searchTerm) {
+        fetchUsers();
+      } else {
+        debouncedFetchUsers(searchTerm);
+      }
     }
-  }, [searchTerm, fetchUsers]);
+  }, [searchTerm, fetchUsers, isAuthenticated, debouncedFetchUsers]);
 
   // Memoized user list
   const filteredUsers = useMemo(() => {
@@ -597,211 +618,219 @@ function App() {
 
   // Socket.IO handling
   useEffect(() => {
-    if (isAuthenticated) {
-      socket.on('connect', () => console.log('Connected to server'));
-      socket.on('receiveMessage', (msg) => {
-        setMessages((prev) => {
-          if (!prev.some((m) => m.messageId === msg.messageId)) {
-            return [...prev, msg];
-          }
-          return prev;
-        });
-        setContactedUsernames((prev) =>
-          prev.includes(msg.username) ? prev : [...prev, msg.username]
-        );
-        if (msg.username === recipient) {
-          setUnreadMessages((prev) => ({ ...prev, [msg.username]: 0 }));
-          api.post(`/messages/mark-read/${username}/${msg.username}`);
-        } else {
-          setUnreadMessages((prev) => ({
-            ...prev,
-            [msg.username]: (prev[msg.username] || 0) + 1,
-          }));
+    if (!isAuthenticated) return;
+
+    socket.on('connect', () => console.log('Connected to server'));
+    socket.on('receiveMessage', (msg) => {
+      setMessages((prev) => {
+        if (!prev.some((m) => m.messageId === msg.messageId)) {
+          return [...prev, { ...msg, sender: msg.sender.toLowerCase() }];
         }
+        return prev;
       });
-      socket.on('userTyping', (data) => {
-        if (data.username === recipient) {
-          setTyping(data.username);
-          setTimeout(() => setTyping(''), 2000);
+      setContactedUsernames((prev) => {
+        const sender = msg.sender.toLowerCase();
+        return prev.includes(sender) || sender === username.toLowerCase()
+          ? prev
+          : [...prev, sender];
+      });
+      if (msg.sender.toLowerCase() === recipient.toLowerCase()) {
+        setUnreadMessages((prev) => ({ ...prev, [msg.sender.toLowerCase()]: 0 }));
+        api.post(`/api/messages/mark-read/${username.toLowerCase()}/${msg.sender.toLowerCase()}`)
+          .catch((err) => console.error('Failed to mark messages read:', err.message));
+      } else {
+        setUnreadMessages((prev) => ({
+          ...prev,
+          [msg.sender.toLowerCase()]: (prev[msg.sender.toLowerCase()] || 0) + 1,
+        }));
+      }
+    });
+    socket.on('userTyping', (data) => {
+      if (data.username && data.username.toLowerCase() === recipient.toLowerCase()) {
+        setTyping(`${data.username} is typing...`);
+        setTimeout(() => setTyping(''), 2000);
+      } else {
+        setTyping('');
+      }
+    });
+    socket.on('userStatus', ({ user, status }) => {
+      setOnlineUsers((prev) => {
+        const normalizedUser = user.toLowerCase();
+        if (status === 'online' && !prev.includes(normalizedUser)) {
+          return [...prev, normalizedUser];
+        } else if (status === 'offline') {
+          return prev.filter((u) => u !== normalizedUser);
         }
+        return prev;
       });
-      socket.on('userStatus', ({ user, status }) => {
-        setOnlineUsers((prev) =>
-          status === 'online' ? [...new Set([...prev, user])] : prev.filter((u) => u !== user)
-        );
-      });
-      socket.on('messagesRead', ({ recipient: readRecipient }) => {
-        if (readRecipient === recipient.toLowerCase()) {
-          setUnreadMessages((prev) => ({ ...prev, [readRecipient]: 0 }));
-        }
-      });
-      return () => {
-        socket.off('receiveMessage');
-        socket.off('userTyping');
-        socket.off('userStatus');
-        socket.off('messagesRead');
-      };
-    }
+    });
+    socket.on('messagesRead', ({ recipient: readRecipient }) => {
+      if (readRecipient.toLowerCase() === recipient.toLowerCase()) {
+        setUnreadMessages((prev) => ({ ...prev, [readRecipient.toLowerCase()]: 0 }));
+      }
+    });
+
+    return () => {
+      socket.off('connect');
+      socket.off('receiveMessage');
+      socket.off('userTyping');
+      socket.off('userStatus');
+      socket.off('messagesRead');
+    };
   }, [isAuthenticated, username, recipient]);
 
   // Load chat history
-  const loadChatHistory = async (currentUser, selectedRecipient) => {
+  const loadChatHistory = useCallback(async (currentUser, selectedRecipient) => {
     if (!selectedRecipient) {
       setMessages([]);
       return;
     }
     try {
-      const response = await retry(() => api.get(`/messages/${currentUser.toLowerCase()}/${selectedRecipient.toLowerCase()}`));
-      setMessages(
-        response.data.map((msg) => ({
-          messageId: msg.messageId,
-          username: msg.sender,
-          text: msg.text,
-          timestamp: msg.timestamp,
-          type: msg.type || 'text',
-          file: msg.file || null,
-        }))
+      const response = await retry(() =>
+        api.get(`/api/messages/${currentUser.toLowerCase()}/${selectedRecipient.toLowerCase()}`)
       );
-      setUnreadMessages((prev) => ({ ...prev, [selectedRecipient]: 0 }));
+      setMessages(response.data.map((msg) => ({
+        messageId: msg.messageId,
+        sender: msg.sender.toLowerCase(),
+        text: msg.text,
+        timestamp: msg.timestamp,
+        type: msg.type || 'text',
+        file: msg.file || null,
+      })));
+      setUnreadMessages((prev) => ({ ...prev, [selectedRecipient.toLowerCase()]: 0 }));
       setContactedUsernames((prev) =>
-        prev.includes(selectedRecipient) ? prev : [...prev, selectedRecipient]
+        prev.includes(selectedRecipient.toLowerCase())
+          ? prev
+          : [...prev, selectedRecipient.toLowerCase()]
       );
-      await retry(() => api.post(`/messages/mark-read/${currentUser.toLowerCase()}/${selectedRecipient.toLowerCase()}`));
+      await retry(() =>
+        api.post(`/api/messages/mark-read/${currentUser.toLowerCase()}/${selectedRecipient.toLowerCase()}`)
+      );
     } catch (error) {
       console.error('Failed to fetch chat history:', error.message);
       setMessages([]);
       setError('Failed to load messages');
       setTimeout(() => setError(''), 5000);
     }
-  };
+  }, []);
 
   // Google login
-  const handleGoogleLogin = () => {
-    const googleAuthUrl = `${backendUrl}/auth/google`;
-    window.location.href = googleAuthUrl;
-  };
+  const handleGoogleLogin = useCallback(() => {
+    window.location.href = `${backendUrl}/auth/google`;
+  }, []);
 
   // Register user
-// In App.js, around line 703
-const handleRegister = async (e) => {
-  e.preventDefault();
-  if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
-    setError('Username must be 3-20 characters (letters, numbers, underscores)');
-    setTimeout(() => setError(''), 5000);
-    return;
-  }
-  if (!/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(email)) {
-    setError('Invalid email format');
-    setTimeout(() => setError(''), 5000);
-    return;
-  }
-  if (password.length < 6) {
-    setError('Password must be at least 6 characters');
-    setTimeout(() => setError(''), 5000);
-    return;
-  }
-  try {
-    console.log('Sending registration request to:', `${apiBase}/api/users/register`); // Debug log
-    await api.post('/api/users/register', { email, username: username.toLowerCase(), password });
-    setView('login');
-    setError('Registration successful! Please log in.');
-    setEmail('');
-    setUsername('');
-    setPassword('');
-    setTimeout(() => setError(''), 5000);
-  } catch (error) {
-    console.error('Registration error:', error.message, error.response?.data);
-    setError(error.response?.data?.message || 'Registration failed. Please try again.');
-    setTimeout(() => setError(''), 5000);
-  }
-};
-const handleLogin = async (e) => {
-  e.preventDefault();
-  try {
-    console.log('Sending login request to:', `${apiBase}/api/users/login`); // Debug log
-    const response = await api.post('/api/users/login', { email, password });
-    localStorage.setItem('token', response.data.token);
-    localStorage.setItem('username', response.data.username.toLowerCase());
-    api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
-    setIsAuthenticated(true);
-    setUsername(response.data.username.toLowerCase());
-    setView('chat');
-    socket.emit('registerUser', response.data.username.toLowerCase());
-    fetchUsers();
-    fetchUnreadMessages();
-    setError('');
-    setEmail('');
-    setPassword('');
-  } catch (error) {
-    console.error('Login error:', error.message, error.response?.data);
-    setError(error.response?.data?.message || 'Login failed. Please check your email or password.');
-    setTimeout(() => setError(''), 5000);
-  }
-};
+  const handleRegister = useCallback(async (e) => {
+    e.preventDefault();
+    if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
+      setError('Username must be 3-20 characters (letters, numbers, underscores)');
+      setTimeout(() => setError(''), 5000);
+      return;
+    }
+    if (!/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(email)) {
+      setError('Invalid email format');
+      setTimeout(() => setError(''), 5000);
+      return;
+    }
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters');
+      setTimeout(() => setError(''), 5000);
+      return;
+    }
+    try {
+      await api.post('/api/users/register', { email, username: username.toLowerCase(), password });
+      setView('login');
+      setError('Registration successful! Please log in.');
+      setEmail('');
+      setUsername('');
+      setPassword('');
+      setTimeout(() => setError(''), 5000);
+    } catch (error) {
+      console.error('Registration error:', error.response?.data?.message);
+      setError(error.response?.data?.message || 'Registration failed. Please try again.');
+      setTimeout(() => setError(''), 5000);
+    }
+  }, [email, username, password]);
+
+  // Login user
+  const handleLogin = useCallback(async (e) => {
+    e.preventDefault();
+    try {
+      const response = await api.post('/api/users/login', { email, password });
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('username', response.data.username.toLowerCase());
+      api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
+      setIsAuthenticated(true);
+      setUsername(response.data.username.toLowerCase());
+      setView('chat');
+      socket.emit('registerUser', response.data.username.toLowerCase());
+      fetchUsers();
+      fetchUnreadMessages(response.data.username.toLowerCase());
+      setEmail('');
+      setPassword('');
+      setError('');
+    } catch (error) {
+      console.error('Login error:', error.response?.data?.message || error.message);
+      setError(error.response?.data?.message || 'Login failed. Please check your email or password.');
+      setTimeout(() => setError(''), 5000);
+    }
+  }, [email, password, fetchUsers, fetchUnreadMessages]);
 
   // Send text message
-  const sendMessage = async () => {
+  const sendMessage = useCallback(async () => {
     if (!message.trim() || !isAuthenticated || !recipient || isUploading) return;
     try {
+      const messageId = Date.now().toString(); // Temporary ID for deduplication
+      const timestamp = new Date().toISOString();
+      const tempMessage = {
+        messageId,
+        sender: username.toLowerCase(),
+        recipient: recipient.toLowerCase(),
+        text: message,
+        type: 'text',
+        timestamp,
+      };
+      setMessages((prev) => [...prev, tempMessage]); // Optimistic update
       const response = await api.post('/api/messages/sendText', {
         sender: username.toLowerCase(),
         recipient: recipient.toLowerCase(),
         text: message,
-        timestamp: new Date().toISOString(),
+        timestamp,
       });
       const savedMessage = response.data;
       setMessages((prev) =>
-        prev.some((msg) => msg.messageId === savedMessage.messageId)
-          ? prev
-          : [...prev, savedMessage]
+        prev.map((m) => (m.messageId === messageId ? { ...savedMessage, sender: savedMessage.sender.toLowerCase() } : m))
       );
-      const emitWithRetry = (event, data, callback, retries = 3, delay = 1000) => {
-        let attempts = 0;
-        const tryEmit = () => {
-          if (socket.connected) {
-            socket.emit(event, data, callback);
-          } else if (attempts < retries) {
-            attempts++;
-            setTimeout(tryEmit, delay);
-          } else {
-            setError('Failed to send message: No connection');
-            setTimeout(() => setError(''), 5000);
-          }
-        };
-        tryEmit();
-      };
-      emitWithRetry(
-        'sendMessage',
-        {
-          recipient: recipient.toLowerCase(),
-          message: savedMessage.text,
-          type: savedMessage.type,
-          messageId: savedMessage.messageId,
-          timestamp: savedMessage.timestamp,
-          username: username.toLowerCase(),
-        },
-        (response) => {
-          if (response?.status === 'error') {
-            setError(response.message || 'Failed to send message');
-            setTimeout(() => setError(''), 5000);
-          }
+      socket.emit('sendMessage', {
+        recipient: recipient.toLowerCase(),
+        message: savedMessage.text,
+        type: savedMessage.type,
+        file: savedMessage.file,
+        messageId: savedMessage.messageId,
+        timestamp: savedMessage.timestamp,
+        username: username.toLowerCase(),
+      }, (response) => {
+        if (response?.status === 'error') {
+          setError(response.message || 'Failed to send message');
+          setTimeout(() => setError(''), 5000);
         }
-      );
+      });
       setContactedUsernames((prev) =>
-        prev.includes(recipient) ? prev : [...prev, recipient]
+        prev.includes(recipient.toLowerCase()) ? prev : [...prev, recipient.toLowerCase()]
       );
       setMessage('');
       socket.emit('stopTyping', { recipient: recipient.toLowerCase() });
-      await fetchUnreadMessages();
+      await fetchUnreadMessages(username.toLowerCase());
     } catch (error) {
       console.error('Send message error:', error.message);
       setError('Failed to send message');
       setTimeout(() => setError(''), 5000);
+      setMessages((prev) => prev.filter((m) => m.messageId !== Date.now().toString())); // Rollback on error
     }
-  };
+  }, [message, isAuthenticated, recipient, isUploading, username, fetchUnreadMessages]);
 
   // Send file
-  const sendFile = async (event) => {
+  const sendFile = useCallback(async (event) => {
     const file = event.target.files[0];
     if (!file || !isAuthenticated || !recipient || isUploading) return;
     if (file.size > 5 * 1024 * 1024) {
@@ -826,21 +855,24 @@ const handleLogin = async (e) => {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       const msg = response.data;
-      setMessages((prev) =>
-        prev.some((m) => m.messageId === msg.messageId) ? prev : [...prev, msg]
-      );
+      setMessages((prev) => {
+        if (!prev.some((m) => m.messageId === msg.messageId)) {
+          return [...prev, { ...msg, sender: msg.sender.toLowerCase() }];
+        }
+        return prev;
+      });
       socket.emit('sendMessage', {
         recipient: recipient.toLowerCase(),
         type: msg.type,
-        username: username.toLowerCase(),
-        messageId: msg.messageId,
         file: msg.file,
+        messageId: msg.messageId,
         timestamp: msg.timestamp,
+        username: username.toLowerCase(),
       });
       setContactedUsernames((prev) =>
-        prev.includes(recipient) ? prev : [...prev, recipient]
+        prev.includes(recipient.toLowerCase()) ? prev : [...prev, recipient.toLowerCase()]
       );
-      await fetchUnreadMessages();
+      await fetchUnreadMessages(username.toLowerCase());
     } catch (error) {
       console.error('Failed to send file:', error.message);
       setError('Failed to send file');
@@ -849,10 +881,10 @@ const handleLogin = async (e) => {
       setIsUploading(false);
       fileInputRef.current.value = '';
     }
-  };
+  }, [isAuthenticated, recipient, isUploading, username, fetchUnreadMessages]);
 
   // Update profile picture
-  const updateProfilePic = async (event) => {
+  const updateProfilePic = useCallback(async (event) => {
     const file = event.target.files[0];
     if (!file || !isAuthenticated || isUploading) return;
     setIsUploading(true);
@@ -864,7 +896,10 @@ const handleLogin = async (e) => {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setProfilePic(response.data.filename);
-      setUserDPs((prev) => ({ ...prev, [username.toLowerCase()]: response.data.filename }));
+      setUserDPs((prev) => ({
+        ...prev,
+        [username.toLowerCase()]: response.data.filename,
+      }));
     } catch (error) {
       console.error('Failed to update profile pic:', error.message);
       setError('Failed to update profile picture');
@@ -873,21 +908,21 @@ const handleLogin = async (e) => {
       setIsUploading(false);
       profilePicInputRef.current.value = '';
     }
-  };
+  }, [isAuthenticated, isUploading, username]);
 
   // Handle typing
-  const handleTyping = (e) => {
+  const handleTyping = useCallback((e) => {
     const value = e.target.value;
     setMessage(value);
     if (recipient && value) {
       socket.emit('typing', { recipient: recipient.toLowerCase(), username: username.toLowerCase() });
-    } else {
+    } else if (recipient) {
       socket.emit('stopTyping', { recipient: recipient.toLowerCase() });
     }
-  };
+  }, [recipient, username]);
 
   // Handle reactions
-  const handleReaction = (messageId, emoji) => {
+  const handleReaction = useCallback((messageId, emoji) => {
     setReactions((prev) => {
       const messageReactions = prev[messageId] || {};
       const userReactions = messageReactions[username] || [];
@@ -901,15 +936,15 @@ const handleLogin = async (e) => {
       return { ...prev, [messageId]: updatedMessageReactions };
     });
     setReactionPicker({ messageId: null, visible: false });
-  };
+  }, [username]);
 
   // Toggle reaction picker
-  const toggleReactionPicker = (messageId) => {
+  const toggleReactionPicker = useCallback((messageId) => {
     setReactionPicker((prev) => ({
       messageId,
       visible: prev.messageId === messageId ? !prev.visible : true,
     }));
-  };
+  }, []);
 
   // Close reaction picker on outside click
   useEffect(() => {
@@ -927,7 +962,7 @@ const handleLogin = async (e) => {
   }, [reactionPicker]);
 
   // Logout
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     localStorage.clear();
     setIsAuthenticated(false);
     setUsername('');
@@ -942,7 +977,7 @@ const handleLogin = async (e) => {
     setShowReactions(true);
     setSearchTerm('');
     socket.disconnect();
-  };
+  }, []);
 
   // Scroll to bottom
   useEffect(() => {
@@ -952,17 +987,17 @@ const handleLogin = async (e) => {
   }, [messages]);
 
   // Modal handlers
-  const showProfilePicModal = () => setIsProfilePicModalOpen(true);
-  const closeProfilePicModal = () => setIsProfilePicModalOpen(false);
-  const showContactPicModal = (contactUsername, contactProfilePic) => {
+  const showProfilePicModal = useCallback(() => setIsProfilePicModalOpen(true), []);
+  const closeProfilePicModal = useCallback(() => setIsProfilePicModalOpen(false), []);
+  const showContactPicModal = useCallback((contactUsername, contactProfilePic) => {
     setContactModal({ isOpen: true, username: contactUsername, profilePic: contactProfilePic });
-  };
-  const closeContactModal = () => {
+  }, []);
+  const closeContactModal = useCallback(() => {
     setContactModal({ isOpen: false, username: '', profilePic: null });
-  };
+  }, []);
 
-  const showProfile = () => setView('profile');
-  const showInfo = () => setView('info');
+  const showProfile = useCallback(() => setView('profile'), []);
+  const showInfo = useCallback(() => setView('info'), []);
 
   return (
     <ErrorBoundary>
@@ -981,13 +1016,13 @@ const handleLogin = async (e) => {
             />
           )}
           <div className="sidebar-icons">
-            <div className="icon" onClick={() => { setView('chat'); setRecipient(''); setMessages([]); }}>
+            <div className="icon" onClick={() => { setView('chat'); setRecipient(''); setMessages([]); }} role="button" tabIndex={0} onKeyPress={(e) => e.key === 'Enter' && setView('chat')}>
               <BsChatLeft size={24} />
             </div>
-            <div className="icon" onClick={showProfile}>
+            <div className="icon" onClick={showProfile} role="button" tabIndex={0} onKeyPress={(e) => e.key === 'Enter' && showProfile()}>
               <FiUser size={24} />
             </div>
-            <div className="icon" onClick={showInfo}>
+            <div className="icon" onClick={showInfo} role="button" tabIndex={0} onKeyPress={(e) => e.key === 'Enter' && showInfo()}>
               <BsInfoCircle size={24} />
             </div>
             <img
@@ -1031,9 +1066,9 @@ const handleLogin = async (e) => {
                 ) : messages.length === 0 ? (
                   <p className="empty-convo">No messages yet. Start the conversation!</p>
                 ) : (
-                  messages.map((msg, index) => (
+                  messages.map((msg) => (
                     <Message
-                      key={msg.messageId || `message-${index}`}
+                      key={msg.messageId}
                       msg={msg}
                       username={username}
                       toggleReactionPicker={toggleReactionPicker}
@@ -1044,7 +1079,7 @@ const handleLogin = async (e) => {
                     />
                   ))
                 )}
-                {typing && recipient && <p className="typing-indicator">{typing} is typing...</p>}
+                {typing && <p className="typing-indicator">{typing}</p>}
               </div>
               {recipient && (
                 <MessageInput
@@ -1101,6 +1136,7 @@ const handleLogin = async (e) => {
                   placeholder="Email"
                   className="signup-input"
                   required
+                  aria-label="Email"
                 />
                 <input
                   type="password"
@@ -1110,13 +1146,14 @@ const handleLogin = async (e) => {
                   className="signup-input"
                   required
                   autoComplete="current-password"
+                  aria-label="Password"
                 />
                 <button type="submit" className="signup-button">
                   Sign In
                 </button>
                 <p className="already-have-account">
                   Don't have an account?{' '}
-                  <a href="#" onClick={() => setView('register')}>
+                  <a href="#" onClick={(e) => { e.preventDefault(); setView('register'); }}>
                     Sign Up
                   </a>
                 </p>
@@ -1134,6 +1171,7 @@ const handleLogin = async (e) => {
                   placeholder="Username"
                   className="signup-input"
                   required
+                  aria-label="Username"
                 />
                 <input
                   type="email"
@@ -1142,6 +1180,7 @@ const handleLogin = async (e) => {
                   placeholder="Email"
                   className="signup-input"
                   required
+                  aria-label="Email"
                 />
                 <input
                   type="password"
@@ -1151,13 +1190,14 @@ const handleLogin = async (e) => {
                   className="signup-input"
                   required
                   autoComplete="new-password"
+                  aria-label="Password"
                 />
                 <button type="submit" className="signup-button">
                   Sign Up
                 </button>
                 <p className="have-account">
                   Already have an account?{' '}
-                  <a href="#" onClick={() => setView('login')}>
+                  <a href="#" onClick={(e) => { e.preventDefault(); setView('login'); }}>
                     Sign In
                   </a>
                 </p>
