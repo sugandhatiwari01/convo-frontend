@@ -121,29 +121,30 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
               tabIndex={0}
               onKeyPress={(e) => e.key === 'Enter' && e.target.click()}
             >
-              {userDPs[user] ? (
-                <img
-                  src={`${backendUrl}/Uploads/${userDPs[user]}`}
-                  alt={user}
-                  className="user-avatar"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    showContactPicModal(user, `${backendUrl}/Uploads/${userDPs[user]}`);
-                  }}
-                  style={{ cursor: 'pointer' }}
-                />
-              ) : (
-                <div
-                  className="user-avatar-placeholder"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    showContactPicModal(user, null);
-                  }}
-                  style={{ cursor: 'pointer' }}
-                >
-                  {user.charAt(0).toUpperCase()}
-                </div>
-              )}
+{userDPs[user] ? (
+  <img
+    src={`${backendUrl}/Uploads/${userDPs[user]}`}
+    alt={user}
+    className="user-avatar"
+    onClick={(e) => {
+      e.stopPropagation();
+      showContactPicModal(user, `${backendUrl}/Uploads/${userDPs[user]}`);
+    }}
+    onError={() => setUserDPs((prev) => ({ ...prev, [user]: null }))} // Fallback to placeholder on error
+    style={{ cursor: 'pointer' }}
+  />
+) : (
+  <div
+    className="user-avatar-placeholder"
+    onClick={(e) => {
+      e.stopPropagation();
+      showContactPicModal(user, null);
+    }}
+    style={{ cursor: 'pointer' }}
+  >
+    {user.charAt(0).toUpperCase()}
+  </div>
+)}
               <span className="user-name">
                 {searchTerm && user.toLowerCase().includes(searchTerm.toLowerCase()) ? (
                   <>

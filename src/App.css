@@ -289,14 +289,14 @@ body {
 
 /* Sidebar toggle button - Make it more prominent */
 .sidebar-toggle {
-  background: var(--button-bg); /* Add background for visibility */
+  background: var(--button-bg);
   border: none;
-  color: var(--sidebar-icons-text); /* Use a contrasting color */
+  color: var(--sidebar-icons-text);
   cursor: pointer;
   font-size: 1.5rem;
   display: none;
   transition: background 0.2s ease, transform 0.2s ease;
-  border-radius: 50%; /* Make it circular */
+  border-radius: 50%;
   width: 44px;
   height: 44px;
   display: flex;
@@ -1067,7 +1067,7 @@ body {
   .menu-button {
     display: block;
   }
-  .sidebar-toggle {
+.sidebar-toggle {
     display: block;
     position: fixed;
     top: 1rem;
@@ -1208,6 +1208,13 @@ body {
 
   .modal-content {
     max-height: 60vh;
+  }
+  .header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    padding-right: 0.5rem; /* Add padding to avoid edge touching */
   }
 }
 
