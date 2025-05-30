@@ -9,7 +9,7 @@
   touch-action: manipulation;
 }
 
-/* Original theme variables */
+/* Theme variables */
 body[data-theme="light"] {
   --background: #E9E2E2;
   --signup-box-bg: #D9D9D9;
@@ -409,7 +409,7 @@ body {
 .user-info {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 1rem;
 }
 
 .menu-button {
@@ -418,6 +418,7 @@ body {
   font-size: 1.75rem;
   cursor: pointer;
   transition: color 0.2s ease;
+  margin-right: 0.5rem;
 }
 
 .menu-button:hover {
@@ -429,6 +430,7 @@ body {
   height: 40px;
   border-radius: 50%;
   object-fit: cover;
+  margin-left: 0.5rem;
 }
 
 .profile-pic-placeholder {
@@ -780,409 +782,28 @@ body {
   object-fit: cover;
   display: block;
   max-width: 100%;
+  cursor: pointer;
+}
+
+.profile-pic-large[src*='placehold.co'] {
+  background: var(--text-primary);
+  color: var(--sent-message-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-pic-large.loading {
+  background: var(--input-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--input-text);
+  font-size: 0.875rem;
 }
 
 .username-display {
   font-size: clamp(1rem, 4vw, 1.125rem);
   color: var(--text-primary);
   margin-bottom: 1rem;
-}
-
-.profile-pic-input {
-  display: none;
-}
-
-.profile-pic-label {
-  color: var(--text-primary);
-  cursor: pointer;
-  font-size: clamp(0.75rem, 3vw, 0.875rem);
-  margin-bottom: 1rem;
-  transition: color 0.2s ease;
-}
-
-.profile-pic-label:hover {
-  color: var(--button-hover);
-}
-
-.settings-options {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.option {
-  padding: 0.75rem;
-  color: var(--text-primary);
-  cursor: pointer;
-  border-radius: 8px;
-  transition: background 0.2s ease;
-}
-
-.option:hover {
-  background: var(--button-bg);
-}
-
-.logout-button {
-  padding: 0.75rem;
-  background: var(--error-text);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: clamp(0.875rem, 3.5vw, 1rem);
-  margin-top: 1rem;
-  transition: background 0.3s ease, transform 0.2s ease;
-}
-
-.logout-button:hover {
-  background: #B33A3A;
-  transform: translateY(-2px);
-}
-
-/* Sidebar icons */
-.sidebar-icons {
-  position: fixed;
-  left: 0;
-  top: 0;
-  height: 100vh;
-  width: 60px;
-  background: var(--sidebar-icons-bg);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 1rem 0;
-  z-index: 1200;
-}
-
-.sidebar-icons .icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  margin-bottom: 1rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--sidebar-icons-text);
-  font-size: 1.5rem;
-  transition: background 0.2s ease;
-}
-
-.sidebar-icons .avatar {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  object-fit: cover;
-}
-
-.sidebar-icons .icon:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-/* Profile and Info pages */
-.user-profile, .info-page {
-  position: fixed;
-  top: 0;
-  left: 60px;
-  width: calc(100% - 60px);
-  height: 100vh;
-  background: var(--chat-bg);
-  z-index: 950;
-  padding: 1rem;
-}
-
-.profile-info, .info-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-}
-
-.profile-info h2, .info-content h2 {
-  color: var(--text-primary);
-  font-size: clamp(1.25rem, 5vw, 1.5rem);
-  margin-bottom: 1rem;
-}
-
-.profile-info p, .info-content p {
-  color: var(--text-primary);
-  font-size: clamp(0.875rem, 3vw, 1rem);
-}
-
-/* Modal styles */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: var(--modal-overlay-bg);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 2000;
-}
-
-.modal-content {
-  background: var(--modal-bg);
-  padding: 1rem;
-  border-radius: 12px;
-  width: 90%;
-  max-width: 400px;
-  max-height: 80vh;
-  overflow-y: auto;
-  text-align: center;
-  position: relative;
-}
-
-.modal-profile-pic {
-  width: 100%;
-  max-width: 300px;
-  max-height: 300px;
-  object-fit: cover;
-  border-radius: 8px;
-}
-
-.modal-close {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-  background: var(--text-primary);
-  color: var(--sent-message-text);
-  border: none;
-  border-radius: 50%;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-
-.modal-close:hover {
-  background: var(--button-hover);
-}
-
-/* Theme toggle styles */
-.appearance-option {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.theme-toggle {
-  width: 40px;
-  height: 20px;
-  background: var(--secondary-text);
-  border-radius: 10px;
-  position: relative;
-  cursor: pointer;
-}
-
-.theme-toggle-slider {
-  width: 100%;
-  height: 100%;
-  border-radius: 10px;
-  position: relative;
-  transition: background 0.3s ease;
-}
-
-.theme-toggle-slider.checked {
-  background: var(--text-primary);
-}
-
-.theme-toggle-icon {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 16px;
-  height: 16px;
-  transition: transform 0.3s ease;
-}
-
-.theme-toggle-slider.checked .theme-toggle-icon {
-  transform: translateX(20px);
-}
-
-.theme-icon-part {
-  position: absolute;
-  background: var(--sent-message-text);
-}
-
-.sun {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-}
-
-.ray {
-  width: 2px;
-  height: 4px;
-  top: -0.5em;
-  left: 0.65em;
-  transform-origin: center 1em;
-}
-
-/* Highlighted search term */
-.highlight {
-  background: var(--button-bg);
-  color: var(--sent-message-text);
-  padding: 0 0.1rem;
-  border-radius: 2px;
-}
-
-/* Error container */
-.error-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100vh;
-  background: var(--background);
-  color: var(--error-text);
-  text-align: center;
-  padding: 1rem;
-}
-
-.error-container h1 {
-  font-size: clamp(1.5rem, 6vw, 2rem);
-  margin-bottom: 1rem;
-}
-
-.error-container p {
-  font-size: clamp(0.875rem, 3.5vw, 1rem);
-  margin-bottom: 1rem;
-}
-
-.error-container button {
-  padding: 0.75rem 1.5rem;
-  background: var(--button-bg);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: clamp(0.875rem, 3.5vw, 1rem);
-  transition: background 0.3s ease, transform 0.2s ease;
-}
-
-.error-container button:hover {
-  background: var(--button-hover);
-  transform: translateY(-2px);
-}
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
-  .sidebar {
-    width: 70vw;
-    transform: translateX(-100%);
-    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.2);
-  }
-
-  .sidebar.open {
-    transform: translateX(0);
-  }
-
-  .main-chat {
-    margin-left: 60px;
-    width: calc(100% - 60px);
-  }
-
-  .main-chat.sidebar-open {
-    margin-left: calc(60px + 70vw);
-    width: calc(100% - 60px - 70vw);
-  }
-
-  .settings-sidebar {
-    width: 70vw;
-    right: -70vw;
-  }
-
-  .settings-sidebar.open {
-    right: 0;
-  }
-
-  .main-chat.settings-open {
-    margin-right: 70vw;
-    width: calc(100% - 60px - 70vw);
-  }
-
-  .search-input {
-    padding: 0.5rem 2rem;
-    font-size: 0.875rem;
-  }
-
-  .search-icon {
-    left: 0.5rem;
-    font-size: 1rem;
-  }
-
-  .clear-search {
-    right: 0.5rem;
-    font-size: 0.875rem;
-  }
-
-  .spinner {
-    right: 1.5rem;
-  }
-
-  .menu-button {
-    display: block;
-    position: fixed;
-    top: 1rem;
-    left: 70px;
-    z-index: 1100;
-  }
-
-  .profile-pic-large {
-    width: 80px;
-    height: 80px;
-    margin-bottom: 0.75rem;
-  }
-
-  .sidebar-toggle {
-    display: flex;
-  }
-}
-
-@media (max-width: 480px) {
-  .sidebar {
-    width: 80vw;
-  }
-
-  .main-chat.sidebar-open {
-    margin-left: calc(60px + 80vw);
-    width: calc(100% - 60px - 80vw);
-  }
-
-  .settings-sidebar {
-    width: 80vw;
-    right: -80vw;
-  }
-
-  .main-chat.settings-open {
-    margin-right: 80vw;
-    width: calc(100% - 60px - 80vw);
-  }
-
-  .search-input {
-    padding: 0.5rem 1.5rem;
-    font-size: 0.75rem;
-  }
-
-  .search-icon, .clear-search {
-    font-size: 0.75rem;
-  }
-
-  .spinner {
-    right: 1rem;
-  }
-
-  .profile-pic-large {
-    width: 60px;
-    height: 60px;
-    margin-bottom: 0.5rem;
-  }
 }

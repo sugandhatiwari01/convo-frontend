@@ -124,12 +124,12 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
             >
               {userDPs[user] ? (
                 <img
-                  src={`${backendUrl}/Uploads/${userDPs[user]}`}
+                  src={`${backendUrl}/Uploads/${userDPs[user]}?t=${Date.now()}`}
                   alt={user}
                   className="user-avatar"
                   onClick={(e) => {
                     e.stopPropagation();
-                    showContactPicModal(user, `${backendUrl}/Uploads/${userDPs[user]}`);
+                    showContactPicModal(user, `${backendUrl}/Uploads/${userDPs[user]}?t=${Date.now()}`);
                   }}
                   style={{ cursor: 'pointer' }}
                 />
@@ -189,7 +189,7 @@ const ChatHeader = ({ recipient, userDPs, setIsSettingsOpen, toggleSidebar, onli
           <>
             {userDPs[recipient] ? (
               <img
-                src={`${backendUrl}/Uploads/${userDPs[recipient]}`}
+                src={`${backendUrl}/Uploads/${userDPs[recipient]}?t=${Date.now()}`}
                 alt={recipient}
                 className="profile-pic"
               />
@@ -219,7 +219,7 @@ const UserProfile = ({ username, profilePic, setView }) => {
       <IoChevronBack className="close-button" onClick={() => setView('chat')} aria-label="Back to chat" />
       <div className="profile-info">
         <img
-          src={profilePic ? `${backendUrl}/Uploads/${profilePic}` : `https://placehold.co/120?text=${username.charAt(0)}`}
+          src={profilePic ? `${backendUrl}/Uploads/${profilePic}?t=${Date.now()}` : `https://placehold.co/120?text=${username.charAt(0)}`}
           alt={username}
           className="profile-pic-large"
         />
@@ -255,7 +255,7 @@ const ProfilePicModal = ({ profilePic, username, onClose }) => {
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose} aria-label="Close modal">×</button>
         <img
-          src={profilePic || `https://placehold.co/300?text=${username.charAt(0)}`}
+          src={profilePic ? `${profilePic}?t=${Date.now()}` : `https://placehold.co/300?text=${username.charAt(0)}`}
           alt={username}
           className="modal-profile-pic"
         />
@@ -274,7 +274,7 @@ const SettingsSidebar = ({ isSettingsOpen, setIsSettingsOpen, username, profileP
       </div>
       <div className="settings-content">
         <img
-          src={profilePic ? `${backendUrl}/Uploads/${profilePic}` : `https://placehold.co/120?text=${username.charAt(0)}`}
+          src={profilePic ? `${backendUrl}/Uploads/${profilePic}?t=${Date.now()}` : `https://placehold.co/120?text=${username.charAt(0)}`}
           alt={username}
           className="profile-pic-large"
           onError={(e) => (e.target.src = `https://placehold.co/120?text=${username.charAt(0)}`)}
@@ -412,7 +412,7 @@ const Message = React.memo(({ msg, username, toggleReactionPicker, reactionPicke
             >
               {msg.type === 'image' ? (
                 <img
-                  src={`${backendUrl}/Uploads/${msg.file}`}
+                  src={`${backendUrl}/Uploads/${msg.file}?t=${Date.now()}`}
                   alt="Uploaded file"
                   style={{ maxWidth: '200px', maxHeight: '200px' }}
                 />
@@ -512,7 +512,10 @@ function App() {
       fetchUnreadMessages(decodedUsername);
       api
         .get(`/users/profile-pic/${decodedUsername}`)
-        .then((response) => setProfilePic(response.data.profilePic))
+        .then((response) => {
+          console.log('Fetched profile pic:', response.data);
+          setProfilePic(response.data.profilePic);
+        })
         .catch((err) => console.error('Failed to fetch profile pic:', err.message));
       setView('chat');
       window.history.replaceState({}, document.title, '/');
@@ -525,7 +528,10 @@ function App() {
       fetchUnreadMessages(storedUsername.toLowerCase());
       api
         .get(`/users/profile-pic/${storedUsername.toLowerCase()}`)
-        .then((response) => setProfilePic(response.data.profilePic))
+        .then((response) => {
+          console.log('Fetched profile pic:', response.data);
+          setProfilePic(response.data.profilePic);
+        })
         .catch((err) => console.error('Failed to fetch profile pic:', err.message));
       setView('chat');
     } else {
@@ -909,28 +915,61 @@ function App() {
   // Update profile picture
   const updateProfilePic = useCallback(async (event) => {
     const file = event.target.files[0];
-    if (!file || !isAuthenticated || isUploading) return;
+    if (!file || !isAuthenticated || isUploading) {
+      setError('No file selected or upload in progress');
+      setTimeout(() => setError(''), 5000);
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError('File size must be less than 5MB');
+      setTimeout(() => setError(''), 5000);
+      return;
+    }
+    const allowedTypes = ['image/jpeg', 'image/png'];
+    if (!allowedTypes.includes(file.type)) {
+      setError('Only JPEG and PNG images are allowed');
+      setTimeout(() => setError(''), 5000);
+      return;
+    }
     setIsUploading(true);
     try {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('username', username.toLowerCase());
+      console.log('Uploading profile picture for:', username.toLowerCase());
       const response = await api.post('/users/uploadProfilePic', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       console.log('Profile pic upload response:', response.data);
-      setProfilePic(response.data.filename);
-      setUserDPs((prev) => ({
-        ...prev,
-        [username.toLowerCase()]: response.data.filename,
-      }));
+      const newProfilePic = response.data.filename;
+      if (newProfilePic) {
+        setProfilePic(newProfilePic);
+        setUserDPs((prev) => ({
+          ...prev,
+          [username.toLowerCase()]: newProfilePic,
+        }));
+        // Force re-fetch profile picture to ensure consistency
+        const profileResponse = await api.get(`/users/profile-pic/${username.toLowerCase()}`);
+        console.log('Re-fetched profile pic:', profileResponse.data);
+        setProfilePic(profileResponse.data.profilePic);
+        setError('Profile picture updated successfully');
+        setTimeout(() => setError(''), 3000);
+      } else {
+        throw new Error('No filename returned from server');
+      }
     } catch (error) {
-      console.error('Failed to update profile pic:', error.message);
-      setError('Failed to update profile picture');
+      console.error('Failed to update profile pic:', {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+      });
+      setError(error.response?.data?.message || 'Failed to update profile picture');
       setTimeout(() => setError(''), 5000);
     } finally {
       setIsUploading(false);
-      profilePicInputRef.current.value = '';
+      if (profilePicInputRef.current) {
+        profilePicInputRef.current.value = '';
+      }
     }
   }, [isAuthenticated, isUploading, username]);
 
@@ -1050,9 +1089,10 @@ function App() {
               <BsInfoCircle size={24} />
             </div>
             <img
-              src={profilePic ? `${backendUrl}/Uploads/${profilePic}` : `https://placehold.co/40?text=${username.charAt(0)}`}
+              src={profilePic ? `${backendUrl}/Uploads/${profilePic}?t=${Date.now()}` : `https://placehold.co/40?text=${username.charAt(0)}`}
               alt={username}
               className="avatar"
+              onClick={showProfilePicModal}
             />
           </div>
           <Sidebar
