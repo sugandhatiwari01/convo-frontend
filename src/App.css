@@ -330,7 +330,7 @@ body {
 .user-item {
   display: flex;
   align-items: center;
-  padding: 0.75rem;
+padding: 10px 15px;
   border-radius: 8px;
   cursor: pointer;
   margin-bottom: 0.5rem;
@@ -364,30 +364,40 @@ body {
 
 .user-name {
   flex: 1;
-  font-size: clamp(0.875rem, 3.5vw, 1rem);
-  margin-left: 8px;
+  margin-left: 10px;
+  margin-right: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .unread-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  background-color: #e74c3c;
-  color: white;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background-color: #8B4513; /* Brown color */
+  color: #FFFFFF; /* White text */
   font-size: 12px;
   font-weight: bold;
-  border-radius: 9px;
-  margin-left: auto;
-  margin-right: 8px;
+  margin-left: 8px;
+  line-height: 20px;
+  transition: background-color 0.3s ease;
 }
 
-/* Highlight user item with unread messages */
-.user-item.has-unread .user-name {
-  font-weight: 600;
+/* Highlight unread user item */
+.user-item.has-unread {
+  font-weight: 500;
+}
+[data-theme="light"] .unread-badge {
+  background-color: #8B4513; /* Same brown for light theme */
 }
 
+[data-theme="dark"] .unread-badge {
+  background-color: #A0522D; /* Slightly lighter brown for dark theme */
+}
 
 .message-count {
   background: var(--text-primary);

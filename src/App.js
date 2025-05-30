@@ -74,6 +74,7 @@ const retry = async (fn, retries = 3, delay = 1000) => {
 };
 
 // Sidebar Component
+// Sidebar Component
 const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRecipient, loadChatHistory, unreadMessages, userDPs, isSidebarOpen, toggleSidebar, onlineUsers, showContactPicModal, isSearching }) => {
   const clearSearch = useCallback(() => setSearchTerm(''), []);
 
@@ -121,15 +122,10 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
             <div
               key={user}
               className={`user-item ${user === recipient ? 'active' : ''} ${unreadMessages[user] > 0 ? 'has-unread' : ''}`}
-              onClick={() => {
-                setRecipient(user);
-                loadChatHistory(username, user);
-                toggleSidebar(false);
-                setSearchTerm('');
-              }}
+              onClick={() => handleUserClick(user)}
               role="button"
               tabIndex={0}
-              onKeyPress={(e) => e.key === 'Enter' && e.target.click()}
+              onKeyPress={(e) => e.key === 'Enter' && handleUserClick(user)}
             >
               {userDPs[user] ? (
                 <img
@@ -171,7 +167,7 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
                 )}
               </span>
               {unreadMessages[user] > 0 && (
-                <span className="unread-badge">{unreadMessages[user] > 0 ? '9+' : unreadMessages[user]}</span>
+                <span className="unread-badge">{unreadMessages[user] > 9 ? '9+' : unreadMessages[user]}</span>
               )}
               <small>{onlineUsers.includes(user) ? 'Online' : 'Offline'}</small>
             </div>
