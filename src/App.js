@@ -260,9 +260,10 @@ const ProfilePicModal = ({ profilePic, username, onClose }) => {
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose} aria-label="Close modal">×</button>
         <img
-          src={profilePic || `https://placehold.co/300?text=${username.charAt(0)}`}
+          src={profilePic ? `${backendUrl}/Uploads/${profilePic}` : `https://placehold.co/300?text=${username.charAt(0)}`}
           alt={username}
           className="modal-profile-pic"
+          onError={(e) => (e.target.src = `https://placehold.co/300?text=${username.charAt(0)}`)}
         />
       </div>
     </div>
@@ -553,17 +554,17 @@ function App() {
   }, []);
 
   // Fetch unread messages
-  const fetchUnreadMessages = useCallback(async (user) => {
-    if (!user) return;
-    try {
-      const response = await retry(() => api.get(`/messages/unread/${user.toLowerCase()}`));
-      setUnreadMessages(response.data);
-    } catch (error) {
-      console.error('Unread messages error:', error.message);
-      setError('Failed to fetch unread messages');
-      setTimeout(() => setError(''), 5000);
-    }
-  }, []);
+const fetchUnreadMessages = useCallback(async (user) => {
+  if (!user) return;
+  try {
+    const response = await retry(() => api.get(`/messages/unread/${user.toLowerCase()}`));
+    setUnreadMessages(response.data);
+  } catch (error) {
+    console.error('Unread messages error:', error.message);
+    setError('Failed to fetch unread messages');
+    setTimeout(() => setError(''), 5000);
+  }
+}, []);
 
   // Fetch users with optimized search
   const fetchUsers = useCallback(async (query = '') => {
@@ -1051,8 +1052,10 @@ function App() {
   }, [messages]);
 
   // Modal handlers
-  const showProfilePicModal = useCallback(() => setIsProfilePicModalOpen(true), []);
-  const closeProfilePicModal = useCallback(() => setIsProfilePicModalOpen(false), []);
+const showProfilePicModal = useCallback(() => {
+  console.log('Profile pic before modal:', profilePic);
+  setIsProfilePicModalOpen(true);
+}, [profilePic]);  const closeProfilePicModal = useCallback(() => setIsProfilePicModalOpen(false), []);
   const showContactPicModal = useCallback((contactUsername, contactProfilePic) => {
     setContactModal({ isOpen: true, username: contactUsername, profilePic: contactProfilePic });
   }, []);
