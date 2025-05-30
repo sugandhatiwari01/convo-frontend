@@ -91,7 +91,7 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
       const response = await retry(() =>
         api.get(`/users/profile-pic/${user}`, { headers: { Authorization: `Bearer ${token}` } })
       );
-      return response.data.profilePic ? `${backendUrl}/Uploads/${response.data.profilePic}` : null;
+      return response.data.profilePic ? `${backendUrl}/Uploads/${response.data.profilePic}` : `https://placehold.co/300?text=${username.charAt(0)}`;
     } catch (error) {
       console.error(`Failed to re-fetch DP for ${user}:`, error.message);
       return null;
@@ -276,24 +276,22 @@ const InfoPage = ({ setView }) => {
 const ProfilePicModal = ({ profilePic, username, onClose }) => {
   const [dpSrc, setDpSrc] = useState(profilePic);
 
-  useEffect(() => {
-    const fetchDP = async () => {
-      if (!profilePic) {
-        try {
-          const token = localStorage.getItem('token');
-          const response = await retry(() =>
-            api.get(`/users/profile-pic/${username}`, { headers: { Authorization: `Bearer ${token}` } })
-          );
-          const newProfilePic = response.data.profilePic;
-          setDpSrc(newProfilePic ? `${backendUrl}/Uploads/${newProfilePic}` : null);
-        } catch (error) {
-          console.error(`Failed to fetch DP for ${username} in modal:`, error.message);
-          setDpSrc(null);
-        }
-      }
-    };
-    fetchDP();
-  }, [profilePic, username]);
+const ProfilePicModal = ({ profilePic, username, onClose }) => {
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose} aria-label="Close modal">×</button>
+        <img
+          src={profilePic ? `${backendUrl}/Uploads/${profilePic}` : `https://placehold.co/300?text=${username.charAt(0)}`}
+          alt={username}
+          className="modal-profile-pic"
+          onError={(e) => (e.target.src = `https://placehold.co/300?text=${username.charAt(0)}`)}
+        />
+      </div>
+    </div>
+  );
+};
+
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -1102,7 +1100,8 @@ const fetchUnreadMessages = useCallback(async (user) => {
 const showProfilePicModal = useCallback(() => {
   console.log('Profile pic before modal:', profilePic);
   setIsProfilePicModalOpen(true);
-}, [profilePic]);  const closeProfilePicModal = useCallback(() => setIsProfilePicModalOpen(false), []);
+}, [profilePic]); 
+ const closeProfilePicModal = useCallback(() => setIsProfilePicModalOpen(false), []);
   const showContactPicModal = useCallback((contactUsername, contactProfilePic) => {
     setContactModal({ isOpen: true, username: contactUsername, profilePic: contactProfilePic });
   }, []);
