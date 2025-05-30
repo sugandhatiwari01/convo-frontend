@@ -305,8 +305,6 @@ const SettingsSidebar = ({ isSettingsOpen, setIsSettingsOpen, username, profileP
             </label>
           </div>
           <div className="option appearance-option">
-          <div className="theme-icon-part sun"></div>
-
             Appearance
             <div className="theme-toggle" onClick={toggleTheme} role="button" tabIndex={0} onKeyPress={(e) => e.key === 'Enter' && toggleTheme()}>
               <div className={`theme-toggle-slider ${theme === 'dark' ? 'checked' : ''}`}>
