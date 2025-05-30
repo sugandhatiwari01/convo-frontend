@@ -171,7 +171,7 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
                 )}
               </span>
               {unreadMessages[user] > 0 && (
-                <span className="unread-badge">{unreadMessages[user] > 9 ? '9+' : unreadMessages[user]}</span>
+                <span className="unread-badge">{unreadMessages[user] > 0 ? '9+' : unreadMessages[user]}</span>
               )}
               <small>{onlineUsers.includes(user) ? 'Online' : 'Offline'}</small>
             </div>
