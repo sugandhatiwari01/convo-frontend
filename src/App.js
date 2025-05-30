@@ -907,32 +907,68 @@ function App() {
 
   // Update profile picture
   const updateProfilePic = useCallback(async (event) => {
-    const file = event.target.files[0];
-    if (!file || !isAuthenticated || isUploading) return;
-    setIsUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('username', username.toLowerCase());
-      const response = await api.post('/users/uploadProfilePic', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      console.log('Profile pic upload response:', response.data);
-      setProfilePic(response.data.filename);
+  const file = event.target.files[0];
+  if (!file || !isAuthenticated || isUploading) {
+    setError('No file selected or upload in progress');
+    setTimeout(() => setError(''), 5000);
+    return;
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    setError('File size must be less than 5MB');
+    setTimeout(() => setError(''), 5000);
+    return;
+  }
+  const allowedTypes = ['image/jpeg', 'image/png'];
+  if (!allowedTypes.includes(file.type)) {
+    setError('Only JPEG and PNG images are allowed');
+    setTimeout(() => setError(''), 5000);
+    return;
+  }
+  setIsUploading(true);
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('username', username.toLowerCase());
+    // Log FormData entries for debugging
+    for (let [key, value] of formData.entries()) {
+      console.log(`FormData: ${key} =`, value);
+    }
+    console.log('Uploading profile picture for:', username.toLowerCase());
+    const response = await api.post('/users/uploadProfilePic', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    console.log('Profile pic upload response:', response.data);
+    const newProfilePic = response.data.filename;
+    if (newProfilePic) {
+      setProfilePic(newProfilePic);
       setUserDPs((prev) => ({
         ...prev,
-        [username.toLowerCase()]: response.data.filename,
+        [username.toLowerCase()]: newProfilePic,
       }));
-    } catch (error) {
-      console.error('Failed to update profile pic:', error.message);
-      setError('Failed to update profile picture');
-      setTimeout(() => setError(''), 5000);
-    } finally {
-      setIsUploading(false);
+      // Force re-fetch profile picture
+      const profileResponse = await api.get(`/users/profile-pic/${username.toLowerCase()}`);
+      console.log('Re-fetched profile pic:', profileResponse.data);
+      setProfilePic(profileResponse.data.profilePic);
+      setError('Profile picture updated successfully');
+      setTimeout(() => setError(''), 3000);
+    } else {
+      throw new Error('No filename returned from server');
+    }
+  } catch (error) {
+    console.error('Failed to update profile pic:', {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data,
+    });
+    setError(error.response?.data?.message || 'Failed to update profile picture');
+    setTimeout(() => setError(''), 5000);
+  } finally {
+    setIsUploading(false);
+    if (profilePicInputRef.current) {
       profilePicInputRef.current.value = '';
     }
-  }, [isAuthenticated, isUploading, username]);
-
+  }
+}, [isAuthenticated, isUploading, username]);
   // Handle typing
   const handleTyping = useCallback((e) => {
     const value = e.target.value;

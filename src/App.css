@@ -409,7 +409,7 @@ body {
 .user-info {
   display: flex;
   align-items: center;
-  gap: 2rem;
+  gap: .75rem;
 }
 
 .menu-button {
@@ -437,6 +437,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  margin-left: 10px;
 }
 
 .chat-header .user-info div {
