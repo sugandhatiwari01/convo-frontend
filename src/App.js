@@ -74,7 +74,6 @@ const retry = async (fn, retries = 3, delay = 1000) => {
 };
 
 // Sidebar Component
-// Sidebar Component
 const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRecipient, loadChatHistory, unreadMessages, userDPs, isSidebarOpen, toggleSidebar, onlineUsers, showContactPicModal, isSearching }) => {
   const clearSearch = useCallback(() => setSearchTerm(''), []);
 
@@ -84,6 +83,24 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
     if (window.innerWidth <= 768) {
       toggleSidebar(false); // Close sidebar only on mobile
     }
+  };
+
+  const fetchDPWithRetry = async (user) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await retry(() =>
+        api.get(`/users/profile-pic/${user}`, { headers: { Authorization: `Bearer ${token}` } })
+      );
+      return response.data.profilePic ? `${backendUrl}/Uploads/${response.data.profilePic}` : null;
+    } catch (error) {
+      console.error(`Failed to re-fetch DP for ${user}:`, error.message);
+      return null;
+    }
+  };
+
+  const handleDPClick = async (user) => {
+    const dpUrl = await fetchDPWithRetry(user);
+    showContactPicModal(user, dpUrl);
   };
 
   return (
@@ -102,7 +119,7 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             onClick={(e) => e.stopPropagation()}
-            onFocus={(e) => e.stopPropagation()} // Prevent sidebar closure on focus
+            onFocus={(e) => e.stopPropagation()}
             className="search-input"
             aria-label="Search users"
           />
@@ -127,29 +144,31 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
               tabIndex={0}
               onKeyPress={(e) => e.key === 'Enter' && handleUserClick(user)}
             >
-              {userDPs[user] ? (
-                <img
-                  src={`${backendUrl}/Uploads/${userDPs[user]}`}
-                  alt={user}
-                  className="user-avatar"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    showContactPicModal(user, `${backendUrl}/Uploads/${userDPs[user]}`);
-                  }}
-                  style={{ cursor: 'pointer' }}
-                />
-              ) : (
+              <div className="avatar-container">
+                {userDPs[user] ? (
+                  <img
+                    src={`${backendUrl}/Uploads/${userDPs[user]}`}
+                    alt={user}
+                    className="user-avatar"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDPClick(user);
+                    }}
+                    style={{ cursor: 'pointer' }}
+                    onError={(e) => (e.target.style.display = 'none') && (e.target.nextSibling.style.display = 'flex')}
+                  />
+                ) : null}
                 <div
                   className="user-avatar-placeholder"
                   onClick={(e) => {
                     e.stopPropagation();
-                    showContactPicModal(user, null);
+                    handleDPClick(user);
                   }}
-                  style={{ cursor: 'pointer' }}
+                  style={{ display: userDPs[user] ? 'none' : 'flex', cursor: 'pointer' }}
                 >
                   {user.charAt(0).toUpperCase()}
                 </div>
-              )}
+              </div>
               <span className="user-name">
                 {searchTerm && user.toLowerCase().includes(searchTerm.toLowerCase()) ? (
                   <>
@@ -255,21 +274,49 @@ const InfoPage = ({ setView }) => {
 
 // Profile Picture Modal Component
 const ProfilePicModal = ({ profilePic, username, onClose }) => {
+  const [dpSrc, setDpSrc] = useState(profilePic);
+
+  useEffect(() => {
+    const fetchDP = async () => {
+      if (!profilePic) {
+        try {
+          const token = localStorage.getItem('token');
+          const response = await retry(() =>
+            api.get(`/users/profile-pic/${username}`, { headers: { Authorization: `Bearer ${token}` } })
+          );
+          const newProfilePic = response.data.profilePic;
+          setDpSrc(newProfilePic ? `${backendUrl}/Uploads/${newProfilePic}` : null);
+        } catch (error) {
+          console.error(`Failed to fetch DP for ${username} in modal:`, error.message);
+          setDpSrc(null);
+        }
+      }
+    };
+    fetchDP();
+  }, [profilePic, username]);
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose} aria-label="Close modal">×</button>
-        <img
-          src={profilePic ? `${backendUrl}/Uploads/${profilePic}` : `https://placehold.co/300?text=${username.charAt(0)}`}
-          alt={username}
-          className="modal-profile-pic"
-          onError={(e) => (e.target.src = `https://placehold.co/300?text=${username.charAt(0)}`)}
-        />
+        {dpSrc ? (
+          <img
+            src={dpSrc}
+            alt={username}
+            className="modal-profile-pic"
+            onError={(e) => (e.target.style.display = 'none') && (e.target.nextSibling.style.display = 'flex')}
+          />
+        ) : null}
+        <div
+          className="modal-profile-pic-placeholder"
+          style={{ display: dpSrc ? 'none' : 'flex' }}
+        >
+          {username.charAt(0).toUpperCase()}
+        </div>
       </div>
     </div>
   );
 };
-
 // SettingsSidebar Component
 const SettingsSidebar = ({ isSettingsOpen, setIsSettingsOpen, username, profilePic, handleLogout, updateProfilePic, profilePicInputRef, showProfilePicModal, theme, toggleTheme, showReactions, setShowReactions }) => {
   return (
