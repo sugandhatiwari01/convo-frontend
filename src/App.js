@@ -77,6 +77,14 @@ const retry = async (fn, retries = 3, delay = 1000) => {
 const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRecipient, loadChatHistory, unreadMessages, userDPs, isSidebarOpen, toggleSidebar, onlineUsers, showContactPicModal, isSearching }) => {
   const clearSearch = useCallback(() => setSearchTerm(''), []);
 
+  const handleUserClick = (user) => {
+    setRecipient(user);
+    loadChatHistory(username, user);
+    if (window.innerWidth <= 768) {
+      toggleSidebar(false); // Close sidebar only on mobile
+    }
+  };
+
   return (
     <div className={`sidebar ${isSidebarOpen ? 'open' : ''}`} onClick={(e) => e.stopPropagation()}>
       <div className="sidebar-header">
@@ -93,6 +101,7 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             onClick={(e) => e.stopPropagation()}
+            onFocus={(e) => e.stopPropagation()} // Prevent sidebar closure on focus
             className="search-input"
             aria-label="Search users"
           />
