@@ -70,8 +70,11 @@ Convo is a real-time chat application built with React and CSS, designed to prov
 - Ensure the backend URL in `.env` points to the deployed backend (e.g., Render).
 - Update CORS settings in the backend to allow the deployed frontend URL.
 
-## 
+## ![image](https://github.com/user-attachments/assets/9852735e-bff6-4d93-91e3-977bd17c35d8)
 
-## 
 
-## 
+## ![image](https://github.com/user-attachments/assets/de694ecf-c1fd-47c3-a78a-be66b0eba4d7)
+
+
+## ![image](https://github.com/user-attachments/assets/5d296406-40c8-4531-85b4-70c22786e8ce)
+
