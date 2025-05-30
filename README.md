@@ -76,5 +76,5 @@ Convo is a real-time chat application built with React and CSS, designed to prov
 ## ![image](https://github.com/user-attachments/assets/de694ecf-c1fd-47c3-a78a-be66b0eba4d7)
 
 
-## ![image](https://github.com/user-attachments/assets/5d296406-40c8-4531-85b4-70c22786e8ce)
+## ![image](https://github.com/user-attachments/assets/ba9a9fe7-6dee-467b-a6e4-b5552bd86c1b)
 
