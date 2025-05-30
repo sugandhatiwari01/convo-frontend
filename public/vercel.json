@@ -1,0 +1,16 @@
+{
+  "routes": [
+    { "src": "/favicon_io/(.*)", "dest": "/favicon_io/$1" },
+    { "src": "/manifest.json", "dest": "/manifest.json" },
+    { "src": "/.*", "dest": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/favicon_io/(.*\\.png)",
+      "headers": [
+        { "key": "Content-Type", "value": "image/png" },
+        { "key": "Access-Control-Allow-Origin", "value": "*" }
+      ]
+    }
+  ]
+}
