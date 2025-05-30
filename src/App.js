@@ -111,7 +111,7 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
           users.map((user) => (
             <div
               key={user}
-              className={`user-item ${user === recipient ? 'active' : ''}`}
+              className={`user-item ${user === recipient ? 'active' : ''} ${unreadMessages[user] > 0 ? 'has-unread' : ''}`}
               onClick={() => {
                 setRecipient(user);
                 loadChatHistory(username, user);
@@ -162,7 +162,7 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
                 )}
               </span>
               {unreadMessages[user] > 0 && (
-                <span className="message-count">{unreadMessages[user]}</span>
+                <span className="unread-badge">{unreadMessages[user] > 9 ? '9+' : unreadMessages[user]}</span>
               )}
               <small>{onlineUsers.includes(user) ? 'Online' : 'Offline'}</small>
             </div>
