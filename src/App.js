@@ -91,7 +91,7 @@ const Sidebar = ({ username, users, searchTerm, setSearchTerm, recipient, setRec
       const response = await retry(() =>
         api.get(`/users/profile-pic/${user}`, { headers: { Authorization: `Bearer ${token}` } })
       );
-      return response.data.profilePic ? `${backendUrl}/Uploads/${response.data.profilePic}` : `https://placehold.co/300?text=${username.charAt(0)}`;
+      return response.data.profilePic ? `${backendUrl}/Uploads/${response.data.profilePic}` : null;
     } catch (error) {
       console.error(`Failed to re-fetch DP for ${user}:`, error.message);
       return null;
@@ -274,47 +274,23 @@ const InfoPage = ({ setView }) => {
 
 // Profile Picture Modal Component
 const ProfilePicModal = ({ profilePic, username, onClose }) => {
-  const [dpSrc, setDpSrc] = useState(profilePic);
-
-const ProfilePicModal = ({ profilePic, username, onClose }) => {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose} aria-label="Close modal">×</button>
         <img
-          src={profilePic ? `${backendUrl}/Uploads/${profilePic}` : `https://placehold.co/300?text=${username.charAt(0)}`}
+          src={profilePic ? `${backendUrl}/Uploads/${profilePic}` : `https://placehold.co/300?text=${username.charAt(0).toUpperCase()}`}
           alt={username}
           className="modal-profile-pic"
-          onError={(e) => (e.target.src = `https://placehold.co/300?text=${username.charAt(0)}`)}
+          onError={(e) => {
+            e.target.src = `https://placehold.co/300?text=${username.charAt(0).toUpperCase()}`;
+          }}
         />
       </div>
     </div>
   );
 };
 
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose} aria-label="Close modal">×</button>
-        {dpSrc ? (
-          <img
-            src={dpSrc}
-            alt={username}
-            className="modal-profile-pic"
-            onError={(e) => (e.target.style.display = 'none') && (e.target.nextSibling.style.display = 'flex')}
-          />
-        ) : null}
-        <div
-          className="modal-profile-pic-placeholder"
-          style={{ display: dpSrc ? 'none' : 'flex' }}
-        >
-          {username.charAt(0).toUpperCase()}
-        </div>
-      </div>
-    </div>
-  );
-};
 // SettingsSidebar Component
 const SettingsSidebar = ({ isSettingsOpen, setIsSettingsOpen, username, profilePic, handleLogout, updateProfilePic, profilePicInputRef, showProfilePicModal, theme, toggleTheme, showReactions, setShowReactions }) => {
   return (
